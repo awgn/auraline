@@ -52,6 +52,7 @@ pub async fn build_prompt(opts: Options) -> Result<Vec<ColoredString>, JoinError
 }
 
 pub async fn print_prompt(parts: Vec<ColoredString>) -> Result<(), JoinError> {
+    colored::control::set_override(true);
     let stdout = stdout();
     let mut handle = stdout.lock();
     for (i, part) in parts.iter().enumerate() {

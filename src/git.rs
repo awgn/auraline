@@ -185,13 +185,18 @@ pub async fn git_commit_name() -> Option<String> {
 }
 
 pub async fn git_branch_icon() -> Option<String> {
-    let (l, r) = join!(git_rev_parse(false), git_rev_parse(true));
-    if l == Some("HEAD".into()) {
-        Some("⚠ ".into())
-    } else if l == r {
-        Some("⟝ ".into())
-    } else {
-        Some("⎇ ".into())
+    let (local, origin) = join!(git_rev_parse(false), git_rev_parse(true));
+
+    match (&local, &origin) {
+        (None, _) => None,
+        (Some(ref local), _) if local == "HEAD" => Some("⚠ ".into()),
+        _ => {
+            if local == origin {
+                Some("⟝ ".into())
+            } else {
+                Some("⎇ ".into())
+            }
+        }
     }
 }
 
