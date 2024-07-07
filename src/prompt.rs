@@ -2,9 +2,7 @@ use colored::ColoredString;
 use futures::future::join_all;
 use std::future::Future;
 use std::io::stdout;
-use tokio::join;
-use tokio::task::JoinError;
-use tokio::task::JoinHandle;
+use tokio::task::{JoinError, JoinHandle};
 
 use crate::git::git_ahead_behind_icon;
 use crate::git::git_branch_icon;
@@ -27,36 +25,17 @@ macro_rules! item {
         let color = $c.clone();
         tokio::spawn(async move { $e.color(color) })
     }};
-    ($i:ident, $c:expr) => {{
-        let identifier = $i.clone();
-        let color = $c.clone();
-        tokio::spawn(async move { identifier.map(|s| s.opt_color(color)) })
-    }};
 }
 
 pub async fn build_prompt(opts: Options) -> Result<Vec<ColoredString>, JoinError> {
     with_path(&opts.path, async {
-        let (branch, describe): (
-            Result<Option<String>, JoinError>,
-            Result<Option<String>, JoinError>,
-        ) = join!(
-            item! { git_branch_name().await },
-            item! { git_describe().await }
-        );
-
-        let branch = branch.unwrap();
-        let describe = describe.unwrap();
-
-        let branch_clone = branch.clone();
-        let describe_clone = describe.clone();
-
         let prompt: [JoinHandle<Option<ColoredString>>; 7] = [
             item! { git_branch_icon().await },
             item! { git_status_icon().await, opts.theme },
             item! { git_stash_counter().await },
-            item! { branch.bold(), opts.theme },
-            item! { git_commit_name(branch_clone, describe_clone).await.bold() },
-            item! { describe.bold() },
+            item! { git_branch_name().await.bold(), opts.theme },
+            item! { git_commit_name().await.bold() },
+            item! { git_describe().await.bold() },
             item! { git_ahead_behind_icon().await },
         ];
 

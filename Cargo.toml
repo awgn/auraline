@@ -10,4 +10,5 @@ colored = "2.1.0"
 full = "0.1.0"
 futures = "0.3.30"
 itertools = "0.13.0"
-tokio = { version = "1.38.0", features = ["io-std", "macros", "mio", "process", "rt", "rt-multi-thread", "time", "tokio-macros"] }
+lazy_static = "1.5.0"
+tokio = { version = "1.38.0", features = ["io-std", "macros", "mio", "process", "rt", "rt-multi-thread", "sync", "time", "tokio-macros"] }
