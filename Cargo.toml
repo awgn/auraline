@@ -1,0 +1,13 @@
+[package]
+name = "git-prompt-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.86"
+clap = { version = "4.5.8", features = ["derive"] }
+colored = "2.1.0"
+full = "0.1.0"
+futures = "0.3.30"
+itertools = "0.13.0"
+tokio = { version = "1.38.0", features = ["io-std", "macros", "mio", "process", "rt", "rt-multi-thread", "time", "tokio-macros"] }
