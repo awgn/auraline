@@ -11,6 +11,7 @@ use crate::git::git_commit_name;
 use crate::git::git_describe;
 use crate::git::git_stash_counter;
 use crate::git::git_status_icon;
+use crate::netns::net_namespace;
 
 use crate::color::ColorizeExt;
 use crate::Options;
@@ -29,7 +30,8 @@ macro_rules! item {
 
 pub async fn build_prompt(opts: Options) -> Result<Vec<ColoredString>, JoinError> {
     with_path(&opts.path, async {
-        let prompt: [JoinHandle<Option<ColoredString>>; 7] = [
+        let prompt: [JoinHandle<Option<ColoredString>>; 8] = [
+            item! { net_namespace().await, opts.theme },
             item! { git_branch_icon().await },
             item! { git_status_icon().await, opts.theme },
             item! { git_stash_counter().await },
@@ -55,6 +57,7 @@ pub async fn print_prompt(parts: Vec<ColoredString>) -> Result<(), JoinError> {
     colored::control::set_override(true);
     let stdout = stdout();
     let mut handle = stdout.lock();
+
     for (i, part) in parts.iter().enumerate() {
         write!(handle, "{}", part).unwrap();
         if i < parts.len() - 1 {

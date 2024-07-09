@@ -1,6 +1,7 @@
 mod cmd;
 mod color;
 mod git;
+mod netns;
 mod options;
 mod prompt;
 
