@@ -1,3 +1,4 @@
+mod cmd;
 mod color;
 mod git;
 mod options;

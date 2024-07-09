@@ -1,91 +1,14 @@
 use itertools::Itertools;
-use lazy_static::lazy_static;
-use std::{
-    collections::HashMap,
-    ffi::OsStr,
-    sync::{Arc, Mutex},
-    task::Poll,
-};
-use tokio::{join, process::Command};
+use tokio::join;
 
-lazy_static! {
-    static ref GIT: GitCache = GitCache::new();
-}
-
-#[derive(Debug, Clone)]
-struct GitValue(Arc<tokio::sync::Mutex<Poll<Option<String>>>>);
-
-struct GitCache {
-    cache: Mutex<HashMap<String, GitValue>>,
-}
-
-impl GitCache {
-    fn new() -> Self {
-        Self {
-            cache: Mutex::new(std::collections::HashMap::new()),
-        }
-    }
-
-    fn make_key<I, S>(args: I) -> String
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<OsStr>,
-    {
-        args.into_iter()
-            .map(|s| s.as_ref().to_os_string().into_string().unwrap())
-            .join(" ")
-    }
-
-    pub async fn exec<I, S>(&self, args: I) -> Option<String>
-    where
-        I: IntoIterator<Item = S> + Clone,
-        S: AsRef<OsStr>,
-    {
-        let key = Self::make_key(args.clone());
-        let value = {
-            let mut cache = self.cache.lock().unwrap();
-            let value = cache
-                .entry(key)
-                .or_insert_with(|| GitValue(Arc::new(tokio::sync::Mutex::new(Poll::Pending))));
-            value.clone()
-        };
-
-        let mut value = value.0.lock().await;
-        match *value {
-            Poll::Ready(ref v) => v.clone(),
-            Poll::Pending => {
-                let output = Self::git(args).await;
-                *value = Poll::Ready(output.clone());
-                output
-            }
-        }
-    }
-
-    async fn git<I, S>(args: I) -> Option<String>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<OsStr>,
-    {
-        let output = Command::new("git").args(args).output().await.ok()?;
-
-        // tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-
-        if output.status.success() {
-            Some(
-                String::from_utf8(output.stdout)
-                    .unwrap()
-                    .trim_end()
-                    .to_string(),
-            )
-        } else {
-            None
-        }
-    }
-}
+use crate::cmd::CMD;
 
 pub async fn git_describe() -> Option<String> {
-    let output = GIT
-        .exec(["describe", "--abbrev=8", "--always", "--tag", "--long"])
+    let output = CMD
+        .exec(
+            "git",
+            ["describe", "--abbrev=8", "--always", "--tag", "--long"],
+        )
         .await;
 
     output.map(|s| {
@@ -117,7 +40,7 @@ pub async fn git_branch_name() -> Option<String> {
 }
 
 pub async fn git_branch_show() -> Option<String> {
-    GIT.exec(["branch", "--show"]).await.and_then(|s| {
+    CMD.exec("git", ["branch", "--show"]).await.and_then(|s| {
         if s.is_empty() {
             None
         } else {
@@ -127,13 +50,15 @@ pub async fn git_branch_show() -> Option<String> {
 }
 
 pub async fn git_describe_exact_match() -> Option<String> {
-    GIT.exec(["describe", "--exact-match"]).await.and_then(|s| {
-        if s.is_empty() {
-            None
-        } else {
-            Some(s.replace('~', "↓").trim().to_string())
-        }
-    })
+    CMD.exec("git", ["describe", "--exact-match"])
+        .await
+        .and_then(|s| {
+            if s.is_empty() {
+                None
+            } else {
+                Some(s.replace('~', "↓").trim().to_string())
+            }
+        })
 }
 
 pub async fn git_rev_parse(origin: bool) -> Option<String> {
@@ -142,7 +67,7 @@ pub async fn git_rev_parse(origin: bool) -> Option<String> {
     } else {
         ["rev-parse", "--abbrev-ref", "HEAD"]
     };
-    GIT.exec(args).await.and_then(|s| {
+    CMD.exec("git", args).await.and_then(|s| {
         if s.is_empty() {
             None
         } else {
@@ -152,7 +77,7 @@ pub async fn git_rev_parse(origin: bool) -> Option<String> {
 }
 
 pub async fn git_name_rev() -> Option<String> {
-    let xs = GIT.exec(["name-rev", "--name-only", "HEAD"]).await?;
+    let xs = CMD.exec("git", ["name-rev", "--name-only", "HEAD"]).await?;
     let mut result = xs;
     for (o, n) in &[
         ("tags/", ""),
@@ -201,7 +126,7 @@ pub async fn git_branch_icon() -> Option<String> {
 }
 
 pub async fn git_status_icon() -> Option<String> {
-    let output = GIT.exec(["status", "--porcelain"]).await?;
+    let output = CMD.exec("git", ["status", "--porcelain"]).await?;
     if output.is_empty() {
         None
     } else {
@@ -211,7 +136,7 @@ pub async fn git_status_icon() -> Option<String> {
 }
 
 pub async fn git_stash_counter() -> Option<String> {
-    let n = GIT.exec(["stash", "list"]).await?;
+    let n = CMD.exec("git", ["stash", "list"]).await?;
     if n.is_empty() {
         None
     } else {
@@ -222,8 +147,8 @@ pub async fn git_stash_counter() -> Option<String> {
 
 pub async fn git_ahead_behind_icon() -> Option<String> {
     let (ahead, behind) = join!(
-        GIT.exec(["rev-list", "--count", "HEAD@{upstream}..HEAD"]),
-        GIT.exec(["rev-list", "--count", "HEAD@{upstream}..HEAD"])
+        CMD.exec("git", ["rev-list", "--count", "HEAD@{upstream}..HEAD"]),
+        CMD.exec("git", ["rev-list", "--count", "HEAD@{upstream}..HEAD"])
     );
 
     let ahead = ahead?;
