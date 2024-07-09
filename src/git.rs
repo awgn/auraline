@@ -148,7 +148,7 @@ pub async fn git_stash_counter() -> Option<String> {
 pub async fn git_ahead_behind_icon() -> Option<String> {
     let (ahead, behind) = join!(
         CMD.exec("git", ["rev-list", "--count", "HEAD@{upstream}..HEAD"]),
-        CMD.exec("git", ["rev-list", "--count", "HEAD@{upstream}..HEAD"])
+        CMD.exec("git", ["rev-list", "--count", "HEAD..HEAD@{upstream}"])
     );
 
     let ahead = ahead?;
