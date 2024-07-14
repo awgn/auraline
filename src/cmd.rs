@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use lazy_static::lazy_static;
 use std::{
     collections::HashMap,
@@ -15,8 +14,11 @@ lazy_static! {
 #[derive(Debug, Clone)]
 struct CmdOutput(Arc<tokio::sync::Mutex<Poll<Option<String>>>>);
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+struct CmdKey(&'static str, Vec<String>);
+
 pub struct CmdCache {
-    cache: Mutex<HashMap<(&'static str, String), CmdOutput>>,
+    cache: Mutex<HashMap<CmdKey, CmdOutput>>,
 }
 
 impl CmdCache {
@@ -26,16 +28,16 @@ impl CmdCache {
         }
     }
 
-    fn make_key<I, S>(cmd: &'static str, args: I) -> (&'static str, String)
+    fn make_key<I, S>(cmd: &'static str, args: I) -> CmdKey
     where
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        (
+        CmdKey(
             cmd,
             args.into_iter()
                 .map(|s| s.as_ref().to_os_string().into_string().unwrap())
-                .join(" "),
+                .collect::<Vec<_>>(),
         )
     }
 
