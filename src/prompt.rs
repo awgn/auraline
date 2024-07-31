@@ -2,7 +2,7 @@ use colored::ColoredString;
 use futures::future::join_all;
 use std::future::Future;
 use std::io::stdout;
-use tokio::task::{JoinError, JoinHandle};
+use tokio::task::JoinError;
 
 use crate::git::git_ahead_behind_icon;
 use crate::git::git_branch_icon;
@@ -11,6 +11,7 @@ use crate::git::git_commit_name;
 use crate::git::git_describe;
 use crate::git::git_stash_counter;
 use crate::git::git_status_icon;
+use crate::git::git_worktree;
 use crate::netns::net_namespace;
 
 use crate::color::ColorizeExt;
@@ -30,11 +31,12 @@ macro_rules! item {
 
 pub async fn build_prompt(opts: Options) -> Result<Vec<ColoredString>, JoinError> {
     with_path(&opts.path, async {
-        let prompt: [JoinHandle<Option<ColoredString>>; 8] = [
+        let prompt = [
             item! { net_namespace().await, opts.theme },
             item! { git_branch_icon().await },
             item! { git_status_icon().await, opts.theme },
             item! { git_stash_counter().await },
+            item! { git_worktree().await.bold() },
             item! { git_branch_name().await.bold(), opts.theme },
             item! { git_commit_name().await.bold() },
             item! { git_describe().await.bold() },
@@ -61,7 +63,7 @@ pub async fn print_prompt(parts: Vec<ColoredString>) -> Result<(), JoinError> {
     for (i, part) in parts.iter().enumerate() {
         write!(handle, "{}", part).unwrap();
         if i < parts.len() - 1 {
-            write!(handle, "|").unwrap();
+            write!(handle, " ").unwrap();
         }
     }
 

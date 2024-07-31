@@ -1,3 +1,5 @@
+use std::env;
+
 use itertools::Itertools;
 use tokio::join;
 
@@ -135,6 +137,24 @@ pub async fn git_status_icon() -> Option<String> {
     }
 }
 
+pub async fn git_worktree() -> Option<String> {
+    let path = env::current_dir().ok()?;
+    let wt = CMD.exec("git", ["worktree", "list"]).await?;
+    let mut iter = wt.lines();
+
+    iter.next(); // skip the main worktree
+    for line in iter {
+        let mut parts = line.split_whitespace();
+        let worktree_path = parts.next()?;
+        if path.starts_with(worktree_path) {
+            parts.next()?; // skip the branch
+            let name = parts.collect::<Vec<_>>();
+            return Some(format!("⌂{}", name.join(" ")));
+        }
+    }
+    None
+}
+
 pub async fn git_stash_counter() -> Option<String> {
     let n = CMD.exec("git", ["stash", "list"]).await?;
     if n.is_empty() {
@@ -199,6 +219,7 @@ impl GitIcon {
         }
     }
 
+    #[inline]
     fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -217,6 +238,7 @@ fn to_superscript(s: &str) -> String {
         .collect()
 }
 
+#[inline]
 fn merge_icons(icons: Vec<GitIcon>) -> String {
     icons
         .into_iter()
@@ -227,6 +249,7 @@ fn merge_icons(icons: Vec<GitIcon>) -> String {
         .collect()
 }
 
+#[inline]
 fn render_icon((icon, n): (GitIcon, usize)) -> String {
     if n == 1 {
         icon.0.to_string()
