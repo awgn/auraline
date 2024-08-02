@@ -119,9 +119,9 @@ pub async fn git_branch_icon() -> Option<String> {
         (Some(ref local), _) if local == "HEAD" => Some("⚠ ".into()),
         _ => {
             if local == origin {
-                Some("⟝ ".into())
+                Some("⟝".into())
             } else {
-                Some("⎇ ".into())
+                Some("⎇".into())
             }
         }
     }
