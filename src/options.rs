@@ -11,4 +11,7 @@ pub struct Options {
 
     #[clap(short, long, help = "Enable short mode")]
     pub short_mode: bool,
+
+    #[clap(short, long, help = "Fast mode")]
+    pub fast: bool,
 }

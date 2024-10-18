@@ -5,11 +5,20 @@ use tokio::join;
 
 use crate::cmd::CMD;
 
-pub async fn git_describe() -> Option<String> {
+#[inline]
+pub async fn git_describe(fast : bool) -> Option<String> {
+    if fast {
+        git_describe_fast().await
+    } else {
+        git_describe_slow().await
+    }
+}
+
+pub async fn git_describe_slow() -> Option<String> {
     let output = CMD
         .exec(
             "git",
-            ["describe", "--abbrev=8", "--always", "--tag", "--long"],
+            ["describe", "--abbrev=7", "--always", "--tag", "--long"],
         )
         .await;
 
@@ -22,6 +31,17 @@ pub async fn git_describe() -> Option<String> {
             [tag, n] => (tag.to_owned() + "▴" + n).to_string(),
             [tag, "0", hash] => (tag.to_string()) + "|" + hash,
             [tag, n, hash, ..] => (tag.to_owned() + "▴" + n).to_string() + "|" + hash,
+        }
+    })
+}
+
+pub async fn git_describe_fast() -> Option<String> {
+    let args = ["rev-parse", "--short", "HEAD"];
+    CMD.exec("git", args).await.and_then(|s| {
+        if s.is_empty() {
+            None
+        } else {
+            Some(s.trim().to_string())
         }
     })
 }
@@ -78,7 +98,10 @@ pub async fn git_rev_parse(origin: bool) -> Option<String> {
     })
 }
 
-pub async fn git_name_rev() -> Option<String> {
+pub async fn git_name_rev(fast : bool) -> Option<String> {
+    if fast {
+        return None
+    }
     let xs = CMD.exec("git", ["name-rev", "--name-only", "HEAD"]).await?;
     let mut result = xs;
     for (o, n) in &[
@@ -92,8 +115,8 @@ pub async fn git_name_rev() -> Option<String> {
     Some(result)
 }
 
-pub async fn git_commit_name() -> Option<String> {
-    let (name_rev, branch_name, descr) = join!(git_name_rev(), git_branch_name(), git_describe());
+pub async fn git_commit_name(fast : bool) -> Option<String> {
+    let (name_rev, branch_name, descr) = join!(git_name_rev(fast), git_branch_name(), git_describe(fast));
     let name_rev = name_rev?;
 
     if let Some(branch_name) = branch_name {

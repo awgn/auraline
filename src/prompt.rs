@@ -21,7 +21,7 @@ use std::io::Write;
 
 macro_rules! item {
     ($e:expr) => {
-        tokio::spawn(async { $e.map(Into::into) })
+        tokio::spawn(async move { $e.map(Into::into) })
     };
     ($e:expr, $c:expr) => {{
         let color = $c.clone();
@@ -30,7 +30,7 @@ macro_rules! item {
 }
 
 pub async fn build_prompt(opts: Options) -> Result<Vec<ColoredString>, JoinError> {
-    with_path(&opts.path, async {
+    with_path(&opts.path, async move {
         let prompt = [
             item! { net_namespace().await, opts.theme },
             item! { git_branch_icon().await },
@@ -38,8 +38,8 @@ pub async fn build_prompt(opts: Options) -> Result<Vec<ColoredString>, JoinError
             item! { git_stash_counter().await },
             item! { git_worktree().await.bold() },
             item! { git_branch_name().await.bold(), opts.theme },
-            item! { git_commit_name().await.bold() },
-            item! { git_describe().await.bold() },
+            item! { git_commit_name(opts.fast).await.bold() },
+            item! { git_describe(opts.fast).await.bold() },
             item! { git_ahead_behind_icon().await },
         ];
 
