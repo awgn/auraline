@@ -35,13 +35,10 @@ pub async fn git_describe_slow() -> Option<String> {
 }
 
 pub async fn git_describe_fast() -> Option<String> {
-    git!("rev-parse", "--short", "HEAD").await.and_then(|s| {
-        if s.is_empty() {
-            None
-        } else {
-            Some(s.trim().to_string())
-        }
-    })
+    git!("rev-parse", "--short", "HEAD")
+        .await
+        .filter(|s| !s.is_empty())
+        .map(|s| s.trim().to_string())
 }
 
 pub async fn git_branch_name() -> Option<String> {
@@ -50,48 +47,33 @@ pub async fn git_branch_name() -> Option<String> {
         git_describe_exact_match(),
         git_rev_parse(true)
     );
-    match branch {
-        None => match describe_exact_match {
-            None => rev_parse,
-            x => x,
-        },
-        x => x,
-    }
+
+    branch.or(describe_exact_match).or(rev_parse)
 }
 
 pub async fn git_branch_show() -> Option<String> {
-    git!("branch", "--show").await.and_then(|s| {
-        if s.is_empty() {
-            None
-        } else {
-            Some(s.trim().to_string())
-        }
-    })
+    git!("branch", "--show")
+        .await
+        .filter(|s| !s.is_empty())
+        .map(|s| s.trim().to_string())
 }
 
 pub async fn git_describe_exact_match() -> Option<String> {
-    git!("describe", "--exact-match").await.and_then(|s| {
-        if s.is_empty() {
-            None
-        } else {
-            Some(s.replace('~', "↓").trim().to_string())
-        }
-    })
+    git!("describe", "--exact-match")
+        .await
+        .filter(|s| !s.is_empty())
+        .map(|s| s.replace('~', "↓").trim().to_string())
 }
 
 pub async fn git_rev_parse(origin: bool) -> Option<String> {
-    let cmd = if origin {
-        git!("rev-parse", "--abbrev-ref", "origin/HEAD")
-    } else {
-        git!("rev-parse", "--abbrev-ref", "HEAD")
-    };
-    cmd.await.and_then(|s| {
-        if s.is_empty() {
-            None
-        } else {
-            s.trim().split('/').last().map(|s| s.to_string())
-        }
-    })
+    git!(
+        "rev-parse",
+        "--abbrev-ref",
+        if origin { "origin/HEAD" } else { "HEAD" }
+    )
+    .await
+    .filter(|s| !s.is_empty())
+    .and_then(|s| s.trim().split('/').last().map(|s| s.to_string()))
 }
 
 pub async fn git_name_rev(fast: bool) -> Option<String> {
@@ -134,54 +116,45 @@ pub async fn git_commit_name(fast: bool) -> Option<String> {
 pub async fn git_branch_icon() -> Option<String> {
     let (local, origin) = join!(git_rev_parse(false), git_rev_parse(true));
 
-    match (&local, &origin) {
-        (None, _) => None,
-        (Some(ref local), _) if local == "HEAD" => Some("⚠ ".into()),
-        _ => {
-            if local == origin {
-                Some("⟝".into())
-            } else {
-                Some("⎇".into())
-            }
-        }
+    match local.as_deref() {
+        None => None,
+        Some("HEAD") => Some("⚠ ".into()),
+        Some(local) if Some(local) == origin.as_deref() => Some("⟝".into()),
+        _ => Some("⎇".into()),
     }
 }
 
 pub async fn git_status_icon() -> Option<String> {
-    let output = git!("status", "--porcelain").await?;
-    if output.is_empty() {
-        None
-    } else {
-        let icons = output.lines().map(GitIcon::new).collect::<Vec<_>>();
-        Some(merge_icons(icons))
-    }
+    git!("status", "--porcelain")
+        .await
+        .filter(|s| !s.is_empty())
+        .map(|s| merge_icons(s.lines().map(GitIcon::new).collect::<Vec<_>>()))
 }
 
 pub async fn git_worktree() -> Option<String> {
     let path = env::current_dir().ok()?;
     let output = git!("worktree", "list").await?;
-    let mut iter = output.lines();
-    iter.next(); // skip the main worktree
-    for line in iter {
+    output.lines().skip(1).find_map(|line| {
         let mut parts = line.split_whitespace();
         let worktree_path = parts.next()?;
         if path.starts_with(worktree_path) {
             parts.next()?; // skip the branch
-            let name = parts.collect::<Vec<_>>();
-            return Some(format!("⌂{}", name.join(" ")));
+            let name = parts.collect::<Vec<_>>().join(" ");
+            Some(format!("⌂{}", name))
+        } else {
+            None
         }
-    }
-    None
+    })
 }
 
 pub async fn git_stash_counter() -> Option<String> {
-    let output = git!("stash", "list").await?;
-    if output.is_empty() {
-        None
-    } else {
-        let n = &output.lines().count().to_string();
-        ("≡".to_owned() + &to_superscript(n)).into()
-    }
+    git!("stash", "list")
+        .await
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            let n = &s.lines().count().to_string();
+            "≡".to_owned() + &to_superscript(n)
+        })
 }
 
 pub async fn git_ahead_behind_icon() -> Option<String> {
@@ -193,13 +166,11 @@ pub async fn git_ahead_behind_icon() -> Option<String> {
     let ahead = ahead?;
     let behind = behind?;
 
-    let is_zero = |x: &String| x.is_empty() || x == "0";
-
-    match (&ahead, &behind) {
-        _ if is_zero(&ahead) && is_zero(&behind) => None,
-        _ if is_zero(&ahead) => Some(format!("↓{}", behind)),
-        _ if is_zero(&behind) => Some(format!("↑{}", ahead)),
-        _ => Some(format!("↑{}↓{}", ahead, behind)),
+    match (ahead.as_str(), behind.as_str()) {
+        ("0" | "", "0" | "") => None,
+        ("0" | "", behind) => Some(format!("↓{}", behind)),
+        (ahead, "0" | "") => Some(format!("↑{}", ahead)),
+        (ahead, behind) => Some(format!("↑{}↓{}", ahead, behind)),
     }
 }
 
@@ -208,32 +179,33 @@ struct GitIcon(&'static str);
 
 impl GitIcon {
     fn new(input: &str) -> GitIcon {
-        match input.chars().collect::<Vec<char>>().as_slice() {
-            [' ', 'M', ..] => GitIcon("•"),
-            [' ', 'D', ..] => GitIcon("-"),
-            [' ', 'A', ..] => GitIcon("+"),
-            [' ', 'C', ..] => GitIcon("ᶜ"),
-            [' ', 'R', ..] => GitIcon("ᵣ"),
-            ['D', 'D', ..] => GitIcon("╌"),
-            ['A', 'U', ..] => GitIcon("✛"),
-            ['U', 'D', ..] => GitIcon("-"),
-            ['U', 'A', ..] => GitIcon("⊕"),
-            ['D', 'U', ..] => GitIcon("-"),
-            ['A', 'A', ..] => GitIcon("ǂ"),
-            ['U', 'U', ..] => GitIcon("☢"),
-            ['M', 'D', ..] => GitIcon("✫"),
-            ['M', ..] => GitIcon("★"),
-            ['T', ..] => GitIcon("¿"),
-            ['A', 'D', ..] => GitIcon("∓"),
-            ['A', 'M', ..] => GitIcon("∔"),
-            ['A', ..] => GitIcon("✛"),
-            ['D', 'A', ..] => GitIcon("±"),
-            ['D', 'M', ..] => GitIcon("߸"),
-            ['D', ..] => GitIcon("-"),
-            ['C', ..] => GitIcon("©"),
-            ['R', ..] => GitIcon("ʀ"),
-            ['!', '!', ..] => GitIcon(""), // Ignored and untracked
-            ['?', '?', ..] => GitIcon(""), // Ignored and untracked
+        let mut chars = input.chars();
+        match (chars.next(), chars.next()) {
+            (Some(' '), Some('M')) => GitIcon("•"),
+            (Some(' '), Some('D')) => GitIcon("-"),
+            (Some(' '), Some('A')) => GitIcon("+"),
+            (Some(' '), Some('C')) => GitIcon("ᶜ"),
+            (Some(' '), Some('R')) => GitIcon("ᵣ"),
+            (Some('D'), Some('D')) => GitIcon("╌"),
+            (Some('A'), Some('U')) => GitIcon("✛"),
+            (Some('U'), Some('D')) => GitIcon("-"),
+            (Some('U'), Some('A')) => GitIcon("⊕"),
+            (Some('D'), Some('U')) => GitIcon("-"),
+            (Some('A'), Some('A')) => GitIcon("ǂ"),
+            (Some('U'), Some('U')) => GitIcon("☢"),
+            (Some('M'), Some('D')) => GitIcon("✫"),
+            (Some('M'), _) => GitIcon("★"),
+            (Some('T'), _) => GitIcon("¿"),
+            (Some('A'), Some('D')) => GitIcon("∓"),
+            (Some('A'), Some('M')) => GitIcon("∔"),
+            (Some('A'), _) => GitIcon("✛"),
+            (Some('D'), Some('A')) => GitIcon("±"),
+            (Some('D'), Some('M')) => GitIcon("߸"),
+            (Some('D'), _) => GitIcon("-"),
+            (Some('C'), _) => GitIcon("©"),
+            (Some('R'), _) => GitIcon("ʀ"),
+            (Some('!'), Some('!')) => GitIcon(""), // Ignored and untracked
+            (Some('?'), Some('?')) => GitIcon(""), // Ignored and untracked
             _ => GitIcon(""),
         }
     }
