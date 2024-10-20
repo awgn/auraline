@@ -38,6 +38,7 @@ Options:
   -p, --path <PATH>    Specify the git-repository path ($PWD by default)
   -t, --theme <THEME>  Specify the theme color
   -s, --short-mode     Enable short mode
+  -f, --fast           Fast mode
   -h, --help           Print help
   -V, --version        Print version
 ```
