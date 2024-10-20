@@ -6,10 +6,10 @@ into a string suitable to be embedded in the shell prompt. It is written in Rust
 
 Build
 -----
+
 To build the package run the following commands:
 
-```
-cargo build --release
+```bash
 cargo install --path .
 ```
 
@@ -20,7 +20,7 @@ Building prompt-rs Statically
 
 To statically build prompt-rs, you can use the following command:
 
-```
+```bash
 RUSTFLAGS='-C target-feature=+crt-static' cargo build --release
 cargo install --path .
 ```
@@ -31,7 +31,7 @@ The binary will include all necessary dependencies, making it more self-containe
 Usage
 -----
 
-```
+```text
 Usage: git-prompt-rs [OPTIONS]
 
 Options:
@@ -55,7 +55,7 @@ Zsh
 
 For zsh, try the following configuration in .zshrc:
 
-```
+```zsh
 autoload -U colors && colors
 setopt promptsubst
 local git_prompt='$(~/.cargo/bin/prompt-rs --theme blue)'
@@ -68,7 +68,7 @@ Fish
 For fish shell, define the following function in
 ~/.config/fish/functions/fish`_prompt.fish:
 
-```
+```fish
 function fish_prompt --description 'Write out the prompt'
 
     set -l last_status $status
