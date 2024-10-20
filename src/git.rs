@@ -1,12 +1,16 @@
-use std::env;
-
+use crate::cmd::CMD;
 use itertools::Itertools;
+use std::{borrow::Cow, env};
 use tokio::join;
 
-use crate::cmd::CMD;
+macro_rules! git {
+    ( $( $x:expr ),* ) => {
+        CMD.exec("git", [$( $x ),*])
+    };
+}
 
 #[inline]
-pub async fn git_describe(fast : bool) -> Option<String> {
+pub async fn git_describe(fast: bool) -> Option<String> {
     if fast {
         git_describe_fast().await
     } else {
@@ -15,29 +19,23 @@ pub async fn git_describe(fast : bool) -> Option<String> {
 }
 
 pub async fn git_describe_slow() -> Option<String> {
-    let output = CMD
-        .exec(
-            "git",
-            ["describe", "--abbrev=7", "--always", "--tag", "--long"],
-        )
-        .await;
-
-    output.map(|s| {
-        let output = s.trim().split('-').collect::<Vec<_>>();
-        match output[..] {
-            [] => "".to_string(),
-            [tag] => tag.to_string(),
-            [tag, "0"] => tag.to_string(),
-            [tag, n] => (tag.to_owned() + "▴" + n).to_string(),
-            [tag, "0", hash] => (tag.to_string()) + "|" + hash,
-            [tag, n, hash, ..] => (tag.to_owned() + "▴" + n).to_string() + "|" + hash,
-        }
-    })
+    git!("describe", "--abbrev=7", "--always", "--tag", "--long")
+        .await
+        .map(|s| {
+            let output = s.trim().split('-').collect::<Vec<_>>();
+            match output[..] {
+                [] => "".to_owned(),
+                [tag] => tag.to_owned(),
+                [tag, "0"] => tag.to_owned(),
+                [tag, n] => tag.to_owned() + "▴" + n,
+                [tag, "0", hash] => tag.to_owned() + "|" + hash,
+                [tag, n, hash, ..] => tag.to_owned() + "▴" + n + "|" + hash,
+            }
+        })
 }
 
 pub async fn git_describe_fast() -> Option<String> {
-    let args = ["rev-parse", "--short", "HEAD"];
-    CMD.exec("git", args).await.and_then(|s| {
+    git!("rev-parse", "--short", "HEAD").await.and_then(|s| {
         if s.is_empty() {
             None
         } else {
@@ -62,7 +60,7 @@ pub async fn git_branch_name() -> Option<String> {
 }
 
 pub async fn git_branch_show() -> Option<String> {
-    CMD.exec("git", ["branch", "--show"]).await.and_then(|s| {
+    git!("branch", "--show").await.and_then(|s| {
         if s.is_empty() {
             None
         } else {
@@ -72,24 +70,22 @@ pub async fn git_branch_show() -> Option<String> {
 }
 
 pub async fn git_describe_exact_match() -> Option<String> {
-    CMD.exec("git", ["describe", "--exact-match"])
-        .await
-        .and_then(|s| {
-            if s.is_empty() {
-                None
-            } else {
-                Some(s.replace('~', "↓").trim().to_string())
-            }
-        })
+    git!("describe", "--exact-match").await.and_then(|s| {
+        if s.is_empty() {
+            None
+        } else {
+            Some(s.replace('~', "↓").trim().to_string())
+        }
+    })
 }
 
 pub async fn git_rev_parse(origin: bool) -> Option<String> {
-    let args = if origin {
-        ["rev-parse", "--abbrev-ref", "origin/HEAD"]
+    let cmd = if origin {
+        git!("rev-parse", "--abbrev-ref", "origin/HEAD")
     } else {
-        ["rev-parse", "--abbrev-ref", "HEAD"]
+        git!("rev-parse", "--abbrev-ref", "HEAD")
     };
-    CMD.exec("git", args).await.and_then(|s| {
+    cmd.await.and_then(|s| {
         if s.is_empty() {
             None
         } else {
@@ -98,12 +94,11 @@ pub async fn git_rev_parse(origin: bool) -> Option<String> {
     })
 }
 
-pub async fn git_name_rev(fast : bool) -> Option<String> {
+pub async fn git_name_rev(fast: bool) -> Option<String> {
     if fast {
-        return None
+        return None;
     }
-    let xs = CMD.exec("git", ["name-rev", "--name-only", "HEAD"]).await?;
-    let mut result = xs;
+    let mut result = git!("name-rev", "--name-only", "HEAD").await?;
     for (o, n) in &[
         ("tags/", ""),
         ("~", "↓"),
@@ -115,8 +110,10 @@ pub async fn git_name_rev(fast : bool) -> Option<String> {
     Some(result)
 }
 
-pub async fn git_commit_name(fast : bool) -> Option<String> {
-    let (name_rev, branch_name, descr) = join!(git_name_rev(fast), git_branch_name(), git_describe(fast));
+pub async fn git_commit_name(fast: bool) -> Option<String> {
+    let (name_rev, branch_name, descr) =
+        join!(git_name_rev(fast), git_branch_name(), git_describe(fast));
+
     let name_rev = name_rev?;
 
     if let Some(branch_name) = branch_name {
@@ -151,7 +148,7 @@ pub async fn git_branch_icon() -> Option<String> {
 }
 
 pub async fn git_status_icon() -> Option<String> {
-    let output = CMD.exec("git", ["status", "--porcelain"]).await?;
+    let output = git!("status", "--porcelain").await?;
     if output.is_empty() {
         None
     } else {
@@ -162,9 +159,8 @@ pub async fn git_status_icon() -> Option<String> {
 
 pub async fn git_worktree() -> Option<String> {
     let path = env::current_dir().ok()?;
-    let wt = CMD.exec("git", ["worktree", "list"]).await?;
-    let mut iter = wt.lines();
-
+    let output = git!("worktree", "list").await?;
+    let mut iter = output.lines();
     iter.next(); // skip the main worktree
     for line in iter {
         let mut parts = line.split_whitespace();
@@ -179,19 +175,19 @@ pub async fn git_worktree() -> Option<String> {
 }
 
 pub async fn git_stash_counter() -> Option<String> {
-    let n = CMD.exec("git", ["stash", "list"]).await?;
-    if n.is_empty() {
+    let output = git!("stash", "list").await?;
+    if output.is_empty() {
         None
     } else {
-        let n = &n.lines().count().to_string();
-        ("≡".to_string() + &to_superscript(n)).into()
+        let n = &output.lines().count().to_string();
+        ("≡".to_owned() + &to_superscript(n)).into()
     }
 }
 
 pub async fn git_ahead_behind_icon() -> Option<String> {
     let (ahead, behind) = join!(
-        CMD.exec("git", ["rev-list", "--count", "HEAD@{upstream}..HEAD"]),
-        CMD.exec("git", ["rev-list", "--count", "HEAD..HEAD@{upstream}"])
+        git!("rev-list", "--count", "HEAD@{upstream}..HEAD"),
+        git!("rev-list", "--count", "HEAD..HEAD@{upstream}")
     );
 
     let ahead = ahead?;
@@ -273,10 +269,15 @@ fn merge_icons(icons: Vec<GitIcon>) -> String {
 }
 
 #[inline]
-fn render_icon((icon, n): (GitIcon, usize)) -> String {
+fn render_icon((icon, n): (GitIcon, usize)) -> Cow<'static, str> {
     if n == 1 {
-        icon.0.to_string()
+        Cow::Borrowed(icon.0)
     } else {
-        format!("{}{}", icon.0, to_superscript(&n.to_string()))
+        let mut buffer = itoa::Buffer::new();
+        let numb = buffer.format(n);
+        let mut concatenated = String::with_capacity(icon.0.len() + numb.len());
+        concatenated.push_str(icon.0);
+        concatenated.push_str(&to_superscript(numb));
+        Cow::Owned(concatenated)
     }
 }
