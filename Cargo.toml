@@ -1,6 +1,6 @@
 [package]
 name = "prompt-rs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
@@ -11,4 +11,14 @@ futures = "0.3.30"
 itertools = "0.13.0"
 itoa = "1.0.11"
 lazy_static = "1.5.0"
-tokio = { version = "1.38.0", features = ["io-std", "macros", "mio", "process", "rt", "rt-multi-thread", "sync", "time", "tokio-macros"] }
+tokio = { version = "1.38.0", features = [
+    "io-std",
+    "macros",
+    "mio",
+    "process",
+    "rt",
+    "rt-multi-thread",
+    "sync",
+    "time",
+    "tokio-macros",
+] }
