@@ -73,7 +73,7 @@ pub async fn git_rev_parse(origin: bool) -> Option<String> {
     )
     .await
     .filter(|s| !s.is_empty())
-    .and_then(|s| s.trim().split('/').last().map(|s| s.to_string()))
+    .and_then(|s| s.trim().split('/').next_back().map(|s| s.to_string()))
 }
 
 pub async fn git_name_rev(fast: bool) -> Option<String> {
@@ -82,10 +82,10 @@ pub async fn git_name_rev(fast: bool) -> Option<String> {
     }
     let mut result = git!("name-rev", "--name-only", "HEAD").await?;
     for (o, n) in &[
+        ("remotes/origin/", "ᐲ"),
+        ("remotes/", "⟢"),
         ("tags/", ""),
         ("~", "↓"),
-        ("remotes/", "ʀ "),
-        ("remotes/origin/", "ᐲ "),
     ] {
         result = result.replace(o, n);
     }
