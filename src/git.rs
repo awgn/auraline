@@ -82,8 +82,8 @@ pub async fn git_name_rev(fast: bool) -> Option<String> {
     }
     let mut result = git!("name-rev", "--name-only", "HEAD").await?;
     for (o, n) in &[
-        ("remotes/origin/", "ᐲ"),
-        ("remotes/", "⟢"),
+        ("remotes/origin/", "ᐲ•"),
+        ("remotes/", "⟢•"),
         ("tags/", ""),
         ("~", "↓"),
     ] {

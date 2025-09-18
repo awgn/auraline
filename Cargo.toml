@@ -1,11 +1,20 @@
 [package]
 name = "prompt-rs"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
+
+authors = ["Nicola Bonelli <nicola.bonelli@gmail.com>"]
+description = "utility that renders information into a string suitable to be embedded in the shell prompt."
+license = "MIT"
+
+readme = "README.md"
+repository = "https://github.com/awgn/prompt-rs"
+keywords = ["cli", "utility"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 anyhow = "1.0.99"
-clap = { version = "4.5.46", features = ["derive"] }
+clap = { version = "4.5.47", features = ["derive"] }
 colored = "2.2.0"
 futures = "0.3.31"
 itertools = "0.13.0"
