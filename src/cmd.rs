@@ -61,9 +61,6 @@ impl CmdCache {
             Poll::Pending => {
                 let output = {
                     let output = Command::new(cmd).args(args).output().await.ok()?;
-
-                    // tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-
                     if output.status.success() {
                         Some(
                             String::from_utf8(output.stdout)
