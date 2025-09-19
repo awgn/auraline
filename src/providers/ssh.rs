@@ -1,4 +1,4 @@
-pub async fn ssh_info() -> Option<String> {
+pub async fn show() -> Option<String> {
     let ssh_connection = std::env::var("SSH_CONNECTION").ok()?;
     let parts: Vec<&str> = ssh_connection.split_whitespace().collect();
     if parts.len() >= 4 {

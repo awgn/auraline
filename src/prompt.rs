@@ -12,8 +12,9 @@ use crate::providers::git::git_describe;
 use crate::providers::git::git_stash_counter;
 use crate::providers::git::git_status_icon;
 use crate::providers::git::git_worktree;
-use crate::providers::netns::net_namespace;
-use crate::providers::ssh::ssh_info;
+use crate::providers::netns::namespace as net_namespace;
+use crate::providers::ssh::show as ssh_show;
+use crate::providers::netif::show as netif_show;
 
 use crate::color::ColorizeExt;
 use crate::Options;
@@ -33,7 +34,8 @@ macro_rules! item {
 pub async fn build_prompt(opts: Options) -> Result<Vec<ColoredString>, JoinError> {
     with_path(&opts.path, async move {
         let prompt = [
-            item! { ssh_info().await, opts.theme },
+            item! { ssh_show().await, opts.theme },
+            item! { netif_show().await.bold() },
             item! { net_namespace().await, opts.theme },
             item! { git_branch_icon().await },
             item! { git_status_icon().await, opts.theme },
