@@ -1,7 +1,7 @@
-prompt-rs
-==========
+auraline
+========
 
-prompt-rs is an utility that, from a local git repository, renders information
+auraline is an utility that, from a local git repository, renders information
 into a string suitable to be embedded in the shell prompt. It is written in Rust.
 
 Build
@@ -13,26 +13,26 @@ To build the package run the following commands:
 cargo install --path .
 ```
 
-This will build and install the binary `prompt-rs` in the Cargo bin directory (e.g., `~/.cargo/bin/`).
+This will build and install the binary `auraline` in the Cargo bin directory (e.g., `~/.cargo/bin/`).
 
-Building prompt-rs Statically
+Building auraline Statically
 -----------------------------
 
-To statically build prompt-rs, you can use the following command:
+To statically build auraline, you can use the following command:
 
 ```bash
 RUSTFLAGS='-C target-feature=+crt-static' cargo build --release
 cargo install --path .
 ```
 
-This command will instruct Cargo to build prompt-rs with static linking, which will create a static binary.
+This command will instruct Cargo to build auraline with static linking, which will create a static binary.
 The binary will include all necessary dependencies, making it more self-contained and easier to distribute.
 
 Usage
 -----
 
 ```text
-Usage: git-prompt-rs [OPTIONS]
+Usage: git-auraline [OPTIONS]
 
 Options:
   -p, --path <PATH>    Specify the git-repository path ($PWD by default)
@@ -48,7 +48,7 @@ Bash
 
 To use it with bash, configure the shell prompt as follow:
 
-`PS1='\u@\h :: \[\033[1;32m\]\w\[\033[0m\] $(~/.cargo/bin/prompt-rs --theme blue)\n-> '`
+`PS1='\u@\h :: \[\033[1;32m\]\w\[\033[0m\] $(~/.cargo/bin/auraline --theme blue)\n-> '`
 
 Zsh
 ---
@@ -58,7 +58,7 @@ For zsh, try the following configuration in .zshrc:
 ```zsh
 autoload -U colors && colors
 setopt promptsubst
-local git_prompt='$(~/.cargo/bin/prompt-rs --theme blue)'
+local git_prompt='$(~/.cargo/bin/auraline --theme blue)'
 PS1="%{$fg[green]%}%n@%m %{$fg[blue]%}%c ${git_prompt} %# "
 ```
 
@@ -72,7 +72,7 @@ For fish shell, define the following function in
 function fish_prompt --description 'Write out the prompt'
 
     set -l last_status $status
-    set -l git_prompt (~/.cargo/bin/prompt-rs --theme blue)
+    set -l git_prompt (~/.cargo/bin/auraline --theme blue)
 
     if not set -q __fish_prompt_normal
         set -g __fish_prompt_normal (set_color normal)

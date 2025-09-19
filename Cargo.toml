@@ -1,6 +1,6 @@
 [package]
-name = "prompt-rs"
-version = "0.4.1"
+name = "auraline"
+version = "0.5.0"
 edition = "2021"
 
 authors = ["Nicola Bonelli <nicola.bonelli@gmail.com>"]
@@ -8,7 +8,7 @@ description = "utility that renders information into a string suitable to be emb
 license = "MIT"
 
 readme = "README.md"
-repository = "https://github.com/awgn/prompt-rs"
+repository = "https://github.com/awgn/auraline"
 keywords = ["cli", "utility"]
 categories = ["command-line-utilities"]
 
