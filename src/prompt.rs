@@ -15,6 +15,7 @@ use crate::providers::git::git_worktree;
 use crate::providers::netns::namespace as net_namespace;
 use crate::providers::ssh::show as ssh_show;
 use crate::providers::netif::show as netif_show;
+use crate::providers::os::show as os_show;
 
 use crate::color::ColorizeExt;
 use crate::Options;
@@ -34,6 +35,7 @@ macro_rules! item {
 pub async fn build_prompt(opts: Options) -> Result<Vec<ColoredString>, JoinError> {
     with_path(&opts.path, async move {
         let prompt = [
+            item! { os_show().await, opts.theme },
             item! { ssh_show().await, opts.theme },
             item! { netif_show().await.bold() },
             item! { net_namespace().await, opts.theme },
