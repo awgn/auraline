@@ -1,4 +1,6 @@
-pub async fn show() -> Option<String> {
+use crate::options::Options;
+
+pub async fn show(_: &Options) -> Option<String> {
     let ssh_connection = std::env::var("SSH_CONNECTION").ok()?;
     let parts: Vec<&str> = ssh_connection.split_whitespace().collect();
     if parts.len() >= 4 {

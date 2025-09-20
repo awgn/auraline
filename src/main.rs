@@ -1,17 +1,17 @@
 mod cmd;
-mod color;
 mod providers;
 mod options;
 mod prompt;
+mod color;
+
+use std::sync::Arc;
 
 use crate::options::Options;
 use clap::Parser;
-use futures::TryFutureExt;
-use prompt::{build_prompt, print_prompt};
+use prompt::{print_prompt};
 
 #[tokio::main]
-async fn main() {
-    let _ = build_prompt(Options::parse())
-        .and_then(|p| async move { print_prompt(p).await })
-        .await;
+async fn main() -> Result<(), tokio::task::JoinError> {
+    let opts = Arc::new(Options::parse());
+    print_prompt(opts).await
 }

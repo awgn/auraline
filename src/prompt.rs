@@ -1,9 +1,14 @@
-use colored::ColoredString;
-use futures::future::join_all;
+use frunk::hlist;
+use frunk::poly_fn;
+use frunk::HCons;
+use frunk::HNil;
+use owo_colors::Styled;
 use std::future::Future;
-use std::io::stdout;
+use std::sync::Arc;
 use tokio::task::JoinError;
 
+use crate::color::build_bold_style;
+use crate::color::build_color_style;
 use crate::providers::git::git_ahead_behind_icon;
 use crate::providers::git::git_branch_icon;
 use crate::providers::git::git_branch_name;
@@ -17,68 +22,69 @@ use crate::providers::ssh::show as ssh_show;
 use crate::providers::netif::show as netif_show;
 use crate::providers::os::show as os_show;
 
-use crate::color::ColorizeExt;
 use crate::Options;
-
-use std::io::Write;
+use owo_colors::Style;
 
 macro_rules! item {
-    ($e:expr) => {
-        tokio::spawn(async move { $e.map(Into::into) })
-    };
-    ($e:expr, $c:expr) => {{
-        let color = $c.clone();
-        tokio::spawn(async move { $e.color(color) })
+    ($provider:expr, $opt:expr) => {{
+        let cloned_opts = Arc::clone(&$opt);
+        tokio::spawn(async move { $provider(&cloned_opts).await.map(|s| Style::new().style(s)) })
+    }};
+    ($provider:expr, $opt:expr, $styl:expr) => {{
+        let cloned_opts = Arc::clone(&$opt);
+        let style = $styl;
+        tokio::spawn(async move { $provider(&cloned_opts).await.map(|s| style.style(s)) })
     }};
 }
 
-pub async fn build_prompt(opts: Options) -> Result<Vec<ColoredString>, JoinError> {
-    with_path(&opts.path, async move {
-        let prompt = [
-            item! { os_show().await, opts.theme },
-            item! { ssh_show().await, opts.theme },
-            item! { netif_show().await.bold() },
-            item! { net_namespace().await, opts.theme },
-            item! { git_branch_icon().await },
-            item! { git_status_icon().await, opts.theme },
-            item! { git_stash_counter().await },
-            item! { git_worktree().await.bold() },
-            item! { git_branch_name().await.bold(), opts.theme },
-            item! { git_commit_name(opts.fast).await.bold() },
-            item! { git_describe(opts.fast).await.bold() },
-            item! { git_ahead_behind_icon().await },
+type ResultStatic = Result<Option<Styled<&'static str>>, JoinError>;
+type ResultString = Result<Option<Styled<String>>, JoinError>;
+
+pub async fn print_prompt(opts: Arc<Options>) -> Result<(), JoinError> {
+    let path = opts.path.clone();
+    with_path(&path, async move {
+        let color_style = build_color_style(opts.theme.as_deref()).bold();
+        let bold_style = build_bold_style();
+        let styled_prompt = hlist! [
+            item![ os_show, opts, color_style ],
+            item![ ssh_show,opts, bold_style ],
+            item![ netif_show, opts, bold_style],
+            item![ net_namespace, opts, color_style ],
+            item![ git_branch_icon, opts ],
+            item![ git_status_icon, opts, color_style ],
+            item![ git_stash_counter, opts ],
+            item![ git_worktree, opts, bold_style ],
+            item![ git_branch_name, opts, color_style ],
+            item![ git_commit_name, opts, bold_style ],
+            item![ git_describe, opts, bold_style ],
+            item![ git_ahead_behind_icon, opts],
         ];
 
-        let parts = join_all(prompt).await;
+        let styled_results = styled_prompt.hjoin().await;
 
-        Ok(parts
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()?
-            .iter()
-            .filter_map(|x| x.clone())
-            .collect::<Vec<_>>())
+        styled_results.map(
+            poly_fn!(
+                |s: ResultStatic| -> () {
+                   if let Ok(Some(s)) = s {
+                       print!("{s} ")
+                   }
+                },
+                |s: ResultString| -> () {
+                    if let Ok(Some(s)) = s {
+                        print!("{s} ")
+                    }
+                },
+            )
+        );
+
+        Ok(())
     })
     .await
 }
 
-pub async fn print_prompt(parts: Vec<ColoredString>) -> Result<(), JoinError> {
-    colored::control::set_override(true);
-    let stdout = stdout();
-    let mut handle = stdout.lock();
-
-    for (i, part) in parts.iter().enumerate() {
-        write!(handle, "{}", part).unwrap();
-        if i < parts.len() - 1 {
-            write!(handle, " ").unwrap();
-        }
-    }
-
-    Ok(())
-}
-
-async fn with_path<F>(path: &Option<String>, action: F) -> Result<Vec<ColoredString>, JoinError>
+async fn with_path<F>(path: &Option<String>, action: F) -> Result<(), JoinError>
 where
-    F: Future<Output = Result<Vec<ColoredString>, JoinError>>,
+    F: Future<Output = Result<(), JoinError>>,
 {
     match path {
         Some(p) => {
@@ -89,5 +95,33 @@ where
             result
         }
         None => action.await,
+    }
+}
+
+trait HListJoin {
+    type Output;
+    async fn hjoin(self) -> Self::Output;
+}
+
+impl HListJoin for HNil {
+    type Output = HNil;
+    async fn hjoin(self) -> Self::Output {
+        HNil
+    }
+}
+
+impl<H, T> HListJoin for HCons<H, T>
+where
+    H: Future + Send,
+    T: HListJoin + Send,
+    T::Output: Send,
+{
+    type Output = HCons<H::Output, T::Output>;
+    async fn hjoin(self) -> Self::Output {
+        let (head_res, tail_res) = tokio::join!(self.head, self.tail.hjoin());
+        HCons {
+            head: head_res,
+            tail: tail_res,
+        }
     }
 }

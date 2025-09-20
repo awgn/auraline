@@ -14,9 +14,9 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 phf = { version = "0.13.1", features = ["macros"] }
-anyhow = "1.0.99"
-clap = { version = "4.5.47", features = ["derive"] }
-colored = "2.2.0"
+phf_macros = "0.13.1"
+anyhow = "1.0.100"
+clap = { version = "4.5.48", features = ["derive"] }
 futures = "0.3.31"
 if-addrs = "0.14.0"
 itertools = "0.13.0"
@@ -34,4 +34,5 @@ tokio = { version = "1.47.1", features = [
     "time",
     "tokio-macros",
 ] }
-phf_macros = "0.13.1"
+owo-colors = "4.2.2"
+frunk = "0.4.4"

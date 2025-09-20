@@ -1,5 +1,7 @@
 use phf::phf_map;
 
+use crate::options::Options;
+
 #[allow(dead_code)]
 pub struct OsInfo {
     pub icon: &'static str,
@@ -82,7 +84,10 @@ pub async fn lsb_icon() -> Option<&'static str> {
     OS_MAP.get(id).map(|info| info.icon).or_else(|| OS_MAP.get("linux").map(|info| info.icon))
 }
 
-pub async fn show() -> Option<&'static str> {
+pub async fn show(opts: &Options) -> Option<&'static str> {
+    if !opts.nerd_font {
+        return None;
+    }
     match std::env::consts::OS {
         "linux" => lsb_icon().await,
         "windows" => OS_MAP.get("windows").map(|info| info.icon),

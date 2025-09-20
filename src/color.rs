@@ -1,38 +1,39 @@
-use std::fmt::Display;
+use owo_colors::Style;
 
-use colored::Color;
-use colored::ColoredString;
-use colored::Colorize;
-
-pub trait ColorizeExt {
-    fn color<C: Into<Color> + ToString + Display>(self, c: Option<C>) -> Option<ColoredString>;
-    fn bold(self) -> Option<ColoredString>;
+pub fn build_color_style(theme: Option<&str>) -> Style {
+    if let Some(theme) = theme {
+        if let Some(tuple) = parse_true_color(theme) {
+            Style::new().bold().truecolor(tuple.0, tuple.1, tuple.2)
+        } else {
+            match theme {
+                "black" => Style::new().black(),
+                "red" => Style::new().red(),
+                "green" => Style::new().green(),
+                "yellow" => Style::new().yellow(),
+                "blue" => Style::new().blue(),
+                "magenta" => Style::new().magenta(),
+                "cyan" => Style::new().cyan(),
+                "white" => Style::new().white(),
+                "purple" => Style::new().purple(),
+                "bright_black" => Style::new().bright_black(),
+                "bright_red" => Style::new().bright_red(),
+                "bright_green" => Style::new().bright_green(),
+                "bright_yellow" => Style::new().bright_yellow(),
+                "bright_purple" => Style::new().bright_purple(),
+                "bright_blue" => Style::new().bright_blue(),
+                "bright_magenta" => Style::new().bright_magenta(),
+                "bright_cyan" => Style::new().bright_cyan(),
+                "bright_white" => Style::new().bright_white(),
+                _ => Style::new()
+            }
+        }
+    } else {
+        Style::new()
+    }
 }
 
-impl<S> ColorizeExt for Option<S>
-where
-    S: Into<ColoredString>,
-{
-    fn color<C>(self, c: Option<C>) -> Option<ColoredString>
-    where
-        C: Into<Color>,
-        C: ToString + Display,
-    {
-        self.map(|this| {
-            if let Some(color) = c {
-                match parse_true_color(&color.to_string()) {
-                    Some((r, g, b)) => this.into().truecolor(r, g, b),
-                    None => this.into().color(color),
-                }
-            } else {
-                this.into()
-            }
-        })
-    }
-
-    fn bold(self) -> Option<ColoredString> {
-        self.map(|s| s.into().bold())
-    }
+pub fn build_bold_style() -> Style {
+    Style::new().bold()
 }
 
 fn parse_true_color(input: &str) -> Option<(u8, u8, u8)> {

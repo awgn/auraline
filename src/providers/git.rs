@@ -1,4 +1,4 @@
-use crate::cmd::CMD;
+use crate::{cmd::CMD, options::Options};
 use itertools::Itertools;
 use std::{borrow::Cow, env};
 use tokio::join;
@@ -10,8 +10,8 @@ macro_rules! git {
 }
 
 #[inline]
-pub async fn git_describe(fast: bool) -> Option<String> {
-    if fast {
+pub async fn git_describe(opts: &Options) -> Option<String> {
+    if opts.fast {
         git_describe_fast().await
     } else {
         git_describe_slow().await
@@ -41,7 +41,7 @@ pub async fn git_describe_fast() -> Option<String> {
         .map(|s| s.trim().to_string())
 }
 
-pub async fn git_branch_name() -> Option<String> {
+pub async fn git_branch_name(_:&Options) -> Option<String> {
     let (branch, describe_exact_match, rev_parse) = join!(
         git_branch_show(),
         git_describe_exact_match(),
@@ -92,9 +92,9 @@ pub async fn git_name_rev(fast: bool) -> Option<String> {
     Some(result)
 }
 
-pub async fn git_commit_name(fast: bool) -> Option<String> {
+pub async fn git_commit_name(opts: &Options) -> Option<String> {
     let (name_rev, branch_name, descr) =
-        join!(git_name_rev(fast), git_branch_name(), git_describe(fast));
+        join!(git_name_rev(opts.fast), git_branch_name(opts), git_describe(opts));
 
     let name_rev = name_rev?;
 
@@ -113,25 +113,24 @@ pub async fn git_commit_name(fast: bool) -> Option<String> {
     Some(name_rev)
 }
 
-pub async fn git_branch_icon() -> Option<String> {
+pub async fn git_branch_icon(_: &Options) -> Option<&'static str> {
     let (local, origin) = join!(git_rev_parse(false), git_rev_parse(true));
-
     match local.as_deref() {
         None => None,
-        Some("HEAD") => Some("⚠ ".into()),
-        Some(local) if Some(local) == origin.as_deref() => Some("⟝".into()),
-        _ => Some("⎇".into()),
+        Some("HEAD") => Some("⚠"),
+        Some(local) if Some(local) == origin.as_deref() => Some("⟝"),
+        _ => Some("⎇"),
     }
 }
 
-pub async fn git_status_icon() -> Option<String> {
+pub async fn git_status_icon(_: &Options) -> Option<String> {
     git!("status", "--porcelain")
         .await
         .filter(|s| !s.is_empty())
         .map(|s| merge_icons(s.lines().map(GitIcon::new).collect::<Vec<_>>()))
 }
 
-pub async fn git_worktree() -> Option<String> {
+pub async fn git_worktree(_:&Options) -> Option<String> {
     let path = env::current_dir().ok()?;
     let output = git!("worktree", "list").await?;
     output.lines().skip(1).find_map(|line| {
@@ -147,7 +146,7 @@ pub async fn git_worktree() -> Option<String> {
     })
 }
 
-pub async fn git_stash_counter() -> Option<String> {
+pub async fn git_stash_counter(_ :&Options) -> Option<String> {
     git!("stash", "list")
         .await
         .filter(|s| !s.is_empty())
@@ -157,7 +156,7 @@ pub async fn git_stash_counter() -> Option<String> {
         })
 }
 
-pub async fn git_ahead_behind_icon() -> Option<String> {
+pub async fn git_ahead_behind_icon(_: &Options) -> Option<String> {
     let (ahead, behind) = join!(
         git!("rev-list", "--count", "HEAD@{upstream}..HEAD"),
         git!("rev-list", "--count", "HEAD..HEAD@{upstream}")
