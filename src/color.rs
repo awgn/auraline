@@ -3,7 +3,7 @@ use owo_colors::Style;
 pub fn build_color_style(theme: Option<&str>) -> Style {
     if let Some(theme) = theme {
         if let Some(tuple) = parse_true_color(theme) {
-            Style::new().bold().truecolor(tuple.0, tuple.1, tuple.2)
+            Style::new().truecolor(tuple.0, tuple.1, tuple.2)
         } else {
             match theme {
                 "black" => Style::new().black(),
@@ -32,6 +32,7 @@ pub fn build_color_style(theme: Option<&str>) -> Style {
     }
 }
 
+#[inline]
 pub fn build_bold_style() -> Style {
     Style::new().bold()
 }

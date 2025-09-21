@@ -21,6 +21,7 @@ use crate::providers::netns::namespace as net_namespace;
 use crate::providers::ssh::show as ssh_show;
 use crate::providers::netif::show as netif_show;
 use crate::providers::os::show as os_show;
+use crate::providers::manifest::show as manifest_show;
 
 use crate::Options;
 use owo_colors::Style;
@@ -43,18 +44,19 @@ type ResultString = Result<Option<Styled<String>>, JoinError>;
 pub async fn print_prompt(opts: Arc<Options>) -> Result<(), JoinError> {
     let path = opts.path.clone();
     with_path(&path, async move {
-        let color_style = build_color_style(opts.theme.as_deref()).bold();
+        let color_style = build_color_style(opts.theme.as_deref());
         let bold_style = build_bold_style();
         let styled_prompt = hlist! [
             item![ os_show, opts, color_style ],
             item![ ssh_show,opts, bold_style ],
             item![ netif_show, opts, bold_style],
             item![ net_namespace, opts, color_style ],
+            item![ manifest_show, opts, color_style ],
             item![ git_branch_icon, opts ],
             item![ git_status_icon, opts, color_style ],
             item![ git_stash_counter, opts ],
             item![ git_worktree, opts, bold_style ],
-            item![ git_branch_name, opts, color_style ],
+            item![ git_branch_name, opts, color_style.bold() ],
             item![ git_commit_name, opts, bold_style ],
             item![ git_describe, opts, bold_style ],
             item![ git_ahead_behind_icon, opts],
