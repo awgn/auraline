@@ -2,7 +2,7 @@ mod cmd;
 mod providers;
 mod options;
 mod prompt;
-mod color;
+mod style;
 
 use std::sync::Arc;
 

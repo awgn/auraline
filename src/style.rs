@@ -46,3 +46,16 @@ fn parse_true_color(input: &str) -> Option<(u8, u8, u8)> {
         .and_then(|v| v.try_into().ok())
         .map(|r: [u8; 3]| (r[0], r[1], r[2]))
 }
+
+pub fn to_superscript(s: &str) -> String {
+    const SUPERSCRIPT_DIGITS: [char; 10] = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
+    s.chars()
+        .map(|c| {
+            if c.is_ascii_digit() {
+                SUPERSCRIPT_DIGITS[c as usize - '0' as usize] // Assuming ASCII
+            } else {
+                c
+            }
+        })
+        .collect()
+}

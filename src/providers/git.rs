@@ -2,6 +2,7 @@ use crate::{cmd::CMD, options::Options};
 use itertools::Itertools;
 use std::{borrow::Cow, env};
 use tokio::join;
+use crate::style::to_superscript;
 
 macro_rules! git {
     ( $( $x:expr ),* ) => {
@@ -213,19 +214,6 @@ impl GitIcon {
     fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
-}
-
-fn to_superscript(s: &str) -> String {
-    const SUPERSCRIPT_DIGITS: [char; 10] = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
-    s.chars()
-        .map(|c| {
-            if c.is_ascii_digit() {
-                SUPERSCRIPT_DIGITS[c as usize - '0' as usize] // Assuming ASCII
-            } else {
-                c
-            }
-        })
-        .collect()
 }
 
 #[inline]

@@ -7,8 +7,8 @@ use std::future::Future;
 use std::sync::Arc;
 use tokio::task::JoinError;
 
-use crate::color::build_bold_style;
-use crate::color::build_color_style;
+use crate::style::build_bold_style;
+use crate::style::build_color_style;
 use crate::providers::git::git_ahead_behind_icon;
 use crate::providers::git::git_branch_icon;
 use crate::providers::git::git_branch_name;
@@ -23,6 +23,7 @@ use crate::providers::netif::show as netif_show;
 use crate::providers::os::show as os_show;
 use crate::providers::manifest::show as manifest_show;
 use crate::providers::virt::show as virt_show;
+use crate::providers::exit_code::show as exit_code_show;
 
 use crate::Options;
 use owo_colors::Style;
@@ -62,6 +63,7 @@ pub async fn print_prompt(opts: Arc<Options>) -> Result<(), JoinError> {
             item![ git_commit_name, opts, bold_style ],
             item![ git_describe, opts, bold_style ],
             item![ git_ahead_behind_icon, opts],
+            item![ exit_code_show, opts, bold_style.red()],
         ];
 
         let styled_results = styled_prompt.hjoin().await;

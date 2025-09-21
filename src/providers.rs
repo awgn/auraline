@@ -5,3 +5,4 @@ pub mod netif;
 pub mod os;
 pub mod manifest;
 pub mod virt;
+pub mod exit_code;

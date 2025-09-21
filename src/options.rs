@@ -17,4 +17,7 @@ pub struct Options {
 
     #[clap(short, long, help = "Use Nerd Fonts")]
     pub nerd_font: bool,
+
+    #[clap(long, help = "Specify the exit-code of the last command")]
+    pub exit_code: Option<u8>,
 }
