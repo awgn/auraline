@@ -22,6 +22,7 @@ use crate::providers::ssh::show as ssh_show;
 use crate::providers::netif::show as netif_show;
 use crate::providers::os::show as os_show;
 use crate::providers::manifest::show as manifest_show;
+use crate::providers::virt::show as virt_show;
 
 use crate::Options;
 use owo_colors::Style;
@@ -48,6 +49,7 @@ pub async fn print_prompt(opts: Arc<Options>) -> Result<(), JoinError> {
         let bold_style = build_bold_style();
         let styled_prompt = hlist! [
             item![ os_show, opts, color_style ],
+            item![ virt_show, opts, bold_style ],
             item![ ssh_show,opts, bold_style ],
             item![ netif_show, opts, bold_style],
             item![ net_namespace, opts, color_style ],

@@ -152,7 +152,7 @@ pub async fn git_stash_counter(_ :&Options) -> Option<String> {
         .filter(|s| !s.is_empty())
         .map(|s| {
             let n = &s.lines().count().to_string();
-            "≡".to_owned() + &to_superscript(n)
+            format!("≡{}",to_superscript(n))
         })
 }
 
