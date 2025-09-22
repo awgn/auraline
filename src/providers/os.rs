@@ -81,7 +81,10 @@ pub async fn lsb_icon() -> Option<&'static str> {
     let os_release = tokio::fs::read_to_string("/etc/os-release").await.ok()?;
     let id_line = os_release.lines().find(|line| line.starts_with("ID="))?;
     let id = id_line.trim_start_matches("ID=").trim_matches('"');
-    OS_MAP.get(id).map(|info| info.icon).or_else(|| OS_MAP.get("linux").map(|info| info.icon))
+    OS_MAP
+        .get(id)
+        .map(|info| info.icon)
+        .or_else(|| OS_MAP.get("linux").map(|info| info.icon))
 }
 
 pub async fn show(opts: &Options) -> Option<&'static str> {

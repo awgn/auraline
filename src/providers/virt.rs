@@ -1,5 +1,6 @@
 use crate::{cmd::CMD, options::Options};
 use phf::phf_map;
+use smol_str::{SmolStr, ToSmolStr};
 
 #[allow(dead_code)]
 pub struct VirtualizationInfo {
@@ -52,18 +53,20 @@ static VIRTUALIZATION_MAP: phf::Map<&'static str, VirtualizationInfo> = phf_map!
     "container-other" => VirtualizationInfo { icon: "", color: "#A0A0A0", cterm_color: "247", name: "Unknown Container" },
 };
 
-pub async fn show(_: &Options) -> Option<String> {
-    let virt = CMD.exec::<_, &'static str>("systemd-detect-virt", []).await?;
+pub async fn show(_: &Options) -> Option<SmolStr> {
+    let virt = CMD
+        .exec::<_, &'static str>("systemd-detect-virt", [])
+        .await?;
     let icon = match virt {
         ref v if v == "none" => None, // No virtualization detected; return None
-        ref v => VIRTUALIZATION_MAP.get(v).map(|info| info.icon.to_string()),
+        ref v => VIRTUALIZATION_MAP.get(v).map(|info| info.icon),
     };
 
     icon.map(|ico| {
         if ico.is_empty() {
-            virt
+            virt.to_smolstr()
         } else {
-            ico
+            ico.to_smolstr()
         }
     })
 }

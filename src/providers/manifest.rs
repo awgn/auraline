@@ -1,6 +1,6 @@
-use phf::phf_map;
 use crate::options::Options;
-use itertools::Itertools;
+use phf::phf_map;
+use smol_str::{format_smolstr, SmolStr, SmolStrBuilder};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum Confidence {
@@ -83,8 +83,8 @@ static MANIFEST_MAP: phf::Map<&'static str, LanguageInfo> = phf_map! {
     ".cfg" => LanguageInfo { icon: "", color: "#A0A0A0", cterm_color: "247", name: "Config", confidence: Confidence::Low },
     ".ini" => LanguageInfo { icon: "", color: "#A0A0A0", cterm_color: "247", name: "INI", confidence: Confidence::Medium },
     ".toml" => LanguageInfo { icon: "", color: "#A0A0A0", cterm_color: "247", name: "TOML", confidence: Confidence::Medium },
-    ".yaml" => LanguageInfo { icon: "y", color: "#A0A0A0", cterm_color: "247", name: "YAML", confidence: Confidence::Medium },
-    ".yml" => LanguageInfo { icon: "y", color: "#A0A0A0", cterm_color: "247", name: "YAML", confidence: Confidence::Medium },
+    ".yaml" => LanguageInfo { icon: "󰰴", color: "#A0A0A0", cterm_color: "247", name: "YAML", confidence: Confidence::Medium },
+    ".yml" => LanguageInfo { icon: "󰰴", color: "#A0A0A0", cterm_color: "247", name: "YAML", confidence: Confidence::Medium },
     ".json" => LanguageInfo { icon: "", color: "#E5E5E5", cterm_color: "254", name: "JSON", confidence: Confidence::Medium },
 
     // CSS
@@ -284,14 +284,13 @@ static MANIFEST_MAP: phf::Map<&'static str, LanguageInfo> = phf_map! {
     ".zig" => LanguageInfo { icon: "", color: "#f7a41d", cterm_color: "214", name: "Zig", confidence: Confidence::High },
 };
 
-pub async fn show(opts: &Options) -> Option<String> {
+pub async fn show(opts: &Options) -> Option<SmolStr> {
     if !opts.nerd_font {
         return None;
     }
 
     // retrive the list of files in the current directory
     let mut entries = tokio::fs::read_dir(".").await.ok()?;
-
     let mut languages = Vec::new();
 
     while let Some(entry) = entries.next_entry().await.ok()? {
@@ -303,21 +302,18 @@ pub async fn show(opts: &Options) -> Option<String> {
         let lang = MANIFEST_MAP.get(entry.file_name().to_str()?);
         if let Some(lang) = lang {
             languages.push(lang);
-        }
-
-        if let Some(ext) = entry.path().extension().and_then(|s| s.to_str()) {
-            let lang = MANIFEST_MAP.get(&format!(".{ext}"));
-            if let Some(lang) = lang {
+        } else if let Some(ext) = entry.path().extension().and_then(|s| s.to_str()) {
+            if let Some(lang) = MANIFEST_MAP.get(&format_smolstr!(".{ext}")) {
                 languages.push(lang);
             }
         }
     }
 
-    languages.sort_by(|a, b|  {
+    languages.sort_by(|a, b| {
         let ord = b.confidence.cmp(&a.confidence);
         if ord == std::cmp::Ordering::Equal {
             a.icon.cmp(b.icon)
-        }  else {
+        } else {
             ord
         }
     });
@@ -327,6 +323,13 @@ pub async fn show(opts: &Options) -> Option<String> {
     languages.retain(|lang| lang.confidence == top_confidence);
 
     // flatten to a single string
-    let icons: String = languages.into_iter().map(|lang| lang.icon).dedup().collect();
-    Some(icons)
+    let mut builder = SmolStrBuilder::new();
+    let mut cur_icon = "";
+    for lang in &languages {
+        if lang.icon != cur_icon {
+            builder.push_str(lang.icon);
+            cur_icon = lang.icon;
+        }
+    }
+    Some(builder.finish())
 }

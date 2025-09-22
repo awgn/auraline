@@ -1,4 +1,5 @@
 use owo_colors::Style;
+use smol_str::{SmolStr, SmolStrBuilder};
 
 pub fn build_color_style(theme: Option<&str>) -> Style {
     if let Some(theme) = theme {
@@ -24,7 +25,7 @@ pub fn build_color_style(theme: Option<&str>) -> Style {
                 "bright_magenta" => Style::new().bright_magenta(),
                 "bright_cyan" => Style::new().bright_cyan(),
                 "bright_white" => Style::new().bright_white(),
-                _ => Style::new()
+                _ => Style::new(),
             }
         }
     } else {
@@ -47,15 +48,15 @@ fn parse_true_color(input: &str) -> Option<(u8, u8, u8)> {
         .map(|r: [u8; 3]| (r[0], r[1], r[2]))
 }
 
-pub fn to_superscript(s: &str) -> String {
+pub fn to_superscript(s: &str) -> SmolStr {
     const SUPERSCRIPT_DIGITS: [char; 10] = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
-    s.chars()
-        .map(|c| {
-            if c.is_ascii_digit() {
-                SUPERSCRIPT_DIGITS[c as usize - '0' as usize] // Assuming ASCII
-            } else {
-                c
-            }
-        })
-        .collect()
+    let mut builder = SmolStrBuilder::new();
+    for c in s.chars() {
+        builder.push(if c.is_ascii_digit() {
+            SUPERSCRIPT_DIGITS[c as usize - '0' as usize]
+        } else {
+            c
+        });
+    }
+    builder.finish()
 }

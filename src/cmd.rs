@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+use smol_str::SmolStr;
 use std::{
     collections::HashMap,
     ffi::OsStr,
@@ -12,10 +13,10 @@ lazy_static! {
 }
 
 #[derive(Debug, Clone)]
-struct CmdOutput(Arc<tokio::sync::Mutex<Poll<Option<String>>>>);
+struct CmdOutput(Arc<tokio::sync::Mutex<Poll<Option<SmolStr>>>>);
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-struct CmdKey(&'static str, Vec<String>);
+struct CmdKey(&'static str, Vec<SmolStr>);
 
 pub struct CmdCache {
     cache: Mutex<HashMap<CmdKey, CmdOutput>>,
@@ -36,12 +37,12 @@ impl CmdCache {
         CmdKey(
             cmd,
             args.into_iter()
-                .map(|s| s.as_ref().to_os_string().into_string().unwrap())
+                .filter_map(|s| s.as_ref().to_str().map(Into::into))
                 .collect::<Vec<_>>(),
         )
     }
 
-    pub async fn exec<I, S>(&self, cmd: &'static str, args: I) -> Option<String>
+    pub async fn exec<I, S>(&self, cmd: &'static str, args: I) -> Option<SmolStr>
     where
         I: IntoIterator<Item = S> + Clone,
         S: AsRef<OsStr>,
@@ -62,12 +63,11 @@ impl CmdCache {
                 let output = {
                     let output = Command::new(cmd).args(args).output().await.ok()?;
                     if output.status.success() {
-                        Some(
-                            String::from_utf8(output.stdout)
-                                .unwrap()
-                                .trim_end()
-                                .to_string(),
-                        )
+                        unsafe {
+                            Some(SmolStr::new(
+                                std::str::from_utf8_unchecked(&output.stdout).trim_end(),
+                            ))
+                        }
                     } else {
                         None
                     }

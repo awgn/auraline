@@ -36,3 +36,4 @@ tokio = { version = "1.47.1", features = [
 ] }
 owo-colors = "4.2.2"
 frunk = "0.4.4"
+smol_str = "0.3.2"
