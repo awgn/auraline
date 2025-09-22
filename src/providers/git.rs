@@ -186,32 +186,55 @@ impl GitIcon {
     fn new(input: &str) -> GitIcon {
         let mut chars = input.chars();
         match (chars.next(), chars.next()) {
-            (Some(' '), Some('M')) => GitIcon("•"),
-            (Some(' '), Some('D')) => GitIcon("-"),
-            (Some(' '), Some('A')) => GitIcon("+"),
-            (Some(' '), Some('C')) => GitIcon("ᶜ"),
-            (Some(' '), Some('R')) => GitIcon("ᵣ"),
-            (Some('D'), Some('D')) => GitIcon("╌"),
-            (Some('A'), Some('U')) => GitIcon("✛"),
-            (Some('U'), Some('D')) => GitIcon("-"),
-            (Some('U'), Some('A')) => GitIcon("⊕"),
-            (Some('D'), Some('U')) => GitIcon("-"),
-            (Some('A'), Some('A')) => GitIcon("ǂ"),
-            (Some('U'), Some('U')) => GitIcon("☢"),
-            (Some('M'), Some('D')) => GitIcon("✫"),
-            (Some('M'), _) => GitIcon("★"),
-            (Some('T'), _) => GitIcon("¿"),
-            (Some('A'), Some('D')) => GitIcon("∓"),
-            (Some('A'), Some('M')) => GitIcon("∔"),
-            (Some('A'), _) => GitIcon("✛"),
-            (Some('D'), Some('A')) => GitIcon("±"),
-            (Some('D'), Some('M')) => GitIcon("߸"),
-            (Some('D'), _) => GitIcon("-"),
-            (Some('C'), _) => GitIcon("©"),
-            (Some('R'), _) => GitIcon("ʀ"),
-            (Some('!'), Some('!')) => GitIcon(""), // Ignored and untracked
-            (Some('?'), Some('?')) => GitIcon(""), // Ignored and untracked
-            _ => GitIcon(""),
+            // Unmerged states (conflicts)
+            (Some('D'), Some('D')) => GitIcon("✖"), // Both deleted
+            (Some('A'), Some('A')) => GitIcon("⧉"), // Both added
+            (Some('U'), Some('U')) => GitIcon("⚠"), // Both modified - warning
+            (Some('A'), Some('U')) => GitIcon("⊕"), // Added by us
+            (Some('U'), Some('A')) => GitIcon("⊞"), // Added by them
+            (Some('D'), Some('U')) => GitIcon("⊖"), // Deleted by us
+            (Some('U'), Some('D')) => GitIcon("⊟"), // Deleted by them
+
+            // Index changes
+            (Some('M'), Some(' ')) => GitIcon("●"), // Modified in index only
+            (Some('M'), Some('M')) => GitIcon("◉"), // Modified in both
+            (Some('M'), Some('D')) => GitIcon("◐"), // Modified in index, deleted in worktree
+            (Some('M'), Some('T')) => GitIcon("◑"), // Modified in index, type changed in worktree
+
+            (Some('A'), Some(' ')) => GitIcon("✚"), // Added to index only
+            (Some('A'), Some('M')) => GitIcon("✛"), // Added and modified
+            (Some('A'), Some('D')) => GitIcon("⊕"), // Added then deleted in worktree
+            (Some('A'), Some('T')) => GitIcon("⊛"), // Added, type changed in worktree
+
+            (Some('D'), Some(' ')) => GitIcon("−"), // Deleted from index
+            (Some('D'), Some('M')) => GitIcon("∓"), // Deleted in index but modified in worktree (weird state)
+
+            (Some('R'), Some(' ')) => GitIcon("→"), // Renamed in index
+            (Some('R'), Some('M')) => GitIcon("⇢"), // Renamed and modified
+            (Some('R'), Some('D')) => GitIcon("⇥"), // Renamed then deleted
+            (Some('R'), Some('T')) => GitIcon("⤳"), // Renamed and type changed
+
+            (Some('C'), Some(' ')) => GitIcon("⊂"), // Copied in index
+            (Some('C'), Some('M')) => GitIcon("⊃"), // Copied and modified
+            (Some('C'), Some('D')) => GitIcon("⊄"), // Copied then deleted
+            (Some('C'), Some('T')) => GitIcon("⊅"), // Copied and type changed
+
+            (Some('T'), Some(' ')) => GitIcon("◈"), // Type changed in index
+            (Some('T'), Some('M')) => GitIcon("◊"), // Type changed and modified
+            (Some('T'), Some('D')) => GitIcon("⬧"), // Type changed then deleted
+            (Some('T'), Some('T')) => GitIcon("⬢"), // Type changed in both
+
+            (Some(' '), Some('M')) => GitIcon("○"), // Modified in worktree only
+            (Some(' '), Some('D')) => GitIcon(""), // Deleted in worktree only
+            (Some(' '), Some('T')) => GitIcon("◇"), // Type changed in worktree only
+            (Some(' '), Some('R')) => GitIcon("↻"), // Renamed in worktree
+            (Some(' '), Some('C')) => GitIcon("©"), // Copied in worktree
+
+            (Some('?'), Some('?')) => GitIcon(""), // Untracked
+            (Some('!'), Some('!')) => GitIcon(""), // Ignored
+
+            // Default fallback
+            _ => GitIcon(""), // Unknown state
         }
     }
 
