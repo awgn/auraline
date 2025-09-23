@@ -8,6 +8,7 @@ use std::future::Future;
 use std::sync::Arc;
 use tokio::task::JoinError;
 
+use crate::providers::duration::show as duration_show;
 use crate::providers::exit_code::show as exit_code_show;
 use crate::providers::git::git_ahead_behind_icon;
 use crate::providers::git::git_branch_icon;
@@ -23,6 +24,8 @@ use crate::providers::netns::namespace as net_namespace;
 use crate::providers::os::show as os_show;
 use crate::providers::ssh::show as ssh_show;
 use crate::providers::virt::show as virt_show;
+use crate::providers::memory::show as memory_show;
+
 use crate::style::build_bold_style;
 use crate::style::build_color_style;
 
@@ -53,6 +56,7 @@ pub async fn print_prompt(opts: Arc<Options>) -> Result<(), JoinError> {
         let styled_prompt = hlist![
             item![os_show, opts, color_style],
             item![virt_show, opts, bold_style],
+            item![memory_show, opts, bold_style],
             item![ssh_show, opts, bold_style],
             item![netif_show, opts, bold_style],
             item![net_namespace, opts, color_style],
@@ -65,6 +69,7 @@ pub async fn print_prompt(opts: Arc<Options>) -> Result<(), JoinError> {
             item![git_commit_name, opts, bold_style],
             item![git_describe, opts, bold_style],
             item![git_ahead_behind_icon, opts],
+            item![duration_show, opts, Style::new().dimmed()],
             item![exit_code_show, opts, bold_style.red()],
         ];
 
