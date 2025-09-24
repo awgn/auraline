@@ -33,11 +33,6 @@ pub fn build_color_style(theme: Option<&str>) -> Style {
     }
 }
 
-#[inline]
-pub fn build_bold_style() -> Style {
-    Style::new().bold()
-}
-
 fn parse_true_color(input: &str) -> Option<(u8, u8, u8)> {
     input
         .split(',')

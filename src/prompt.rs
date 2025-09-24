@@ -2,116 +2,112 @@ use frunk::hlist;
 use frunk::poly_fn;
 use frunk::HCons;
 use frunk::HNil;
-use owo_colors::Styled;
+use futures::FutureExt;
 use smol_str::SmolStr;
+use std::env;
 use std::future::Future;
 use std::sync::Arc;
 use tokio::task::JoinError;
 
 use crate::providers::duration::show as duration_show;
 use crate::providers::exit_code::show as exit_code_show;
-use crate::providers::git::git_ahead_behind_icon;
-use crate::providers::git::git_branch_icon;
-use crate::providers::git::git_branch_name;
-use crate::providers::git::git_commit_name;
-use crate::providers::git::git_describe;
-use crate::providers::git::git_stash_counter;
-use crate::providers::git::git_status_icon;
-use crate::providers::git::git_worktree;
+
+use crate::chunk::Chunk;
+use crate::chunk::Unit;
 use crate::providers::manifest::show as manifest_show;
+use crate::providers::memory::show as memory_show;
 use crate::providers::netif::show as netif_show;
 use crate::providers::netns::namespace as net_namespace;
 use crate::providers::os::show as os_show;
 use crate::providers::ssh::show as ssh_show;
+use crate::providers::vcs::branch as vcs_branch;
+use crate::providers::vcs::commit as vcs_commit;
+use crate::providers::vcs::describe as vcs_describe;
+use crate::providers::vcs::detect_vcs;
+use crate::providers::vcs::divergence as vcs_divergence;
+use crate::providers::vcs::stash as vcs_stash;
+use crate::providers::vcs::status as vcs_status;
+use crate::providers::vcs::worktree as vcs_worktree;
 use crate::providers::virt::show as virt_show;
-use crate::providers::memory::show as memory_show;
 
-use crate::style::build_bold_style;
 use crate::style::build_color_style;
 
 use crate::Options;
 use owo_colors::Style;
 
 macro_rules! item {
-    ($provider:expr, $opt:expr) => {{
+    ($provider:expr, $opt:expr, $style:expr) => {{
         let cloned_opts = Arc::clone(&$opt);
-        tokio::spawn(async move { $provider(&cloned_opts).await.map(|s| Style::new().style(s)) })
+        let style = $style;
+        tokio::spawn(async move {
+            $provider(&cloned_opts)
+                .await
+                .map(|c| c.with_style(style.0, style.1))
+        })
     }};
-    ($provider:expr, $opt:expr, $styl:expr) => {{
+    ($provider:expr, $opt:expr, $vcs:expr, $style:expr) => {{
         let cloned_opts = Arc::clone(&$opt);
-        let style = $styl;
-        tokio::spawn(async move { $provider(&cloned_opts).await.map(|s| style.style(s)) })
+        let style = $style;
+        let vcs = $vcs.clone();
+        tokio::spawn(async move {
+            $provider(&cloned_opts, vcs)
+                .await
+                .map(|c| c.with_style(style.0, style.1))
+        })
     }};
 }
 
-type ResultStatic = Result<Option<Styled<&'static str>>, JoinError>;
-type ResultString = Result<Option<Styled<String>>, JoinError>;
-type ResultSmolStr = Result<Option<Styled<SmolStr>>, JoinError>;
+type ResultUnit = Result<Option<Chunk<Unit>>, JoinError>;
+type ResultStatic = Result<Option<Chunk<&'static str>>, JoinError>;
+type ResultSmolStr = Result<Option<Chunk<SmolStr>>, JoinError>;
 
-pub async fn print_prompt(opts: Arc<Options>) -> Result<(), JoinError> {
-    let path = opts.path.clone();
-    with_path(&path, async move {
-        let color_style = build_color_style(opts.theme.as_deref());
-        let bold_style = build_bold_style();
-        let styled_prompt = hlist![
-            item![os_show, opts, color_style],
-            item![virt_show, opts, bold_style],
-            item![memory_show, opts, bold_style],
-            item![ssh_show, opts, bold_style],
-            item![netif_show, opts, bold_style],
-            item![net_namespace, opts, color_style],
-            item![manifest_show, opts, color_style],
-            item![git_branch_icon, opts],
-            item![git_status_icon, opts, color_style],
-            item![git_stash_counter, opts],
-            item![git_worktree, opts, bold_style],
-            item![git_branch_name, opts, color_style.bold()],
-            item![git_commit_name, opts, bold_style],
-            item![git_describe, opts, bold_style],
-            item![git_ahead_behind_icon, opts],
-            item![duration_show, opts, Style::new().dimmed()],
-            item![exit_code_show, opts, bold_style.red()],
-        ];
+pub async fn print_prompt(opts: Options) -> Result<(), JoinError> {
+    let vcs = detect_vcs(env::current_dir().unwrap()).shared();
+    let opts = Arc::new(opts);
 
-        let styled_results = styled_prompt.hjoin().await;
+    let color = build_color_style(opts.theme.as_deref());
+    let bold = Style::new().bold();
+    let def = Style::default();
 
-        styled_results.map(poly_fn!(
-            |s: ResultStatic| -> () {
-                if let Ok(Some(s)) = s {
-                    print!("{s} ")
-                }
-            },
-            |s: ResultString| -> () {
-                if let Ok(Some(s)) = s {
-                    print!("{s} ")
-                }
-            },
-            |s: ResultSmolStr| -> () {
-                if let Ok(Some(s)) = s {
-                    print!("{s} ")
-                }
-            },
-        ));
+    let styled_prompt = hlist![
+        item![os_show, opts, (color, bold)],
+        item![virt_show, opts, (bold, bold)],
+        item![memory_show, opts, (bold, bold)],
+        item![ssh_show, opts, (bold, def)],
+        item![netif_show, opts, (bold.dimmed(), def.dimmed())],
+        item![net_namespace, opts, (bold, bold)],
+        item![manifest_show, opts, (color, color)],
+        item![vcs_branch, opts, vcs, (bold, color.bold())],
+        item![vcs_status, opts, vcs, (bold, color)],
+        item![vcs_stash, opts, vcs, (bold, def)],
+        item![vcs_worktree, opts, vcs, (bold, bold)],
+        item![vcs_commit, opts, vcs, (bold, bold)],
+        item![vcs_describe, opts, vcs, (bold, def)],
+        item![vcs_divergence, opts, vcs, (bold, def)],
+        item![duration_show, opts, (def, def.dimmed())],
+        item![exit_code_show, opts, (bold.red(), bold)],
+    ];
 
-        Ok(())
-    })
-    .await
-}
+    let styled_parts = styled_prompt.hjoin().await;
+    styled_parts.map(poly_fn!(
+        |chunk: ResultUnit| -> () {
+            if let Some(c) = chunk.expect("Task panicked") {
+                print!("{c} ")
+            }
+        },
+        |chunk: ResultStatic| -> () {
+            if let Some(c) = chunk.expect("Task panicked") {
+                print!("{c} ")
+            }
+        },
+        |chunk: ResultSmolStr| -> () {
+            if let Some(s) = chunk.expect("Task panicked") {
+                print!("{s} ")
+            }
+        },
+    ));
 
-async fn with_path<F>(path: &Option<String>, action: F) -> Result<(), JoinError>
-where
-    F: Future<Output = Result<(), JoinError>>,
-{
-    match path {
-        Some(p) => {
-            let cur = std::env::current_dir().unwrap();
-            std::env::set_current_dir(p).expect("could not change directory");
-            let result = action.await;
-            std::env::set_current_dir(cur).expect("could not change directory");
-            result
-        }
-        None => action.await,
-    }
+    Ok(())
 }
 
 trait HListJoin {

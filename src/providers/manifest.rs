@@ -1,4 +1,4 @@
-use crate::options::Options;
+use crate::{chunk::Chunk, options::Options};
 use phf::phf_map;
 use smol_str::{format_smolstr, SmolStr, SmolStrBuilder};
 
@@ -284,7 +284,7 @@ static MANIFEST_MAP: phf::Map<&'static str, LanguageInfo> = phf_map! {
     ".zig" => LanguageInfo { icon: "", color: "#f7a41d", cterm_color: "214", name: "Zig", confidence: Confidence::High },
 };
 
-pub async fn show(opts: &Options) -> Option<SmolStr> {
+pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     if !opts.nerd_font {
         return None;
     }
@@ -331,5 +331,5 @@ pub async fn show(opts: &Options) -> Option<SmolStr> {
             cur_icon = lang.icon;
         }
     }
-    Some(builder.finish())
+    Some(Chunk::info(builder.finish()))
 }

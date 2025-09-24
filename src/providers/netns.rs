@@ -1,10 +1,10 @@
-use smol_str::{format_smolstr, SmolStr};
+use smol_str::SmolStr;
 
-use crate::{cmd::CMD, options::Options};
+use crate::{chunk::Chunk, cmd::CMD, options::Options};
 
-pub async fn namespace(_: &Options) -> Option<SmolStr> {
+pub async fn namespace(_: &Options) -> Option<Chunk<SmolStr>> {
     CMD.exec("ip", ["netns", "identify"])
         .await
         .filter(|s| !s.is_empty())
-        .map(|s| format_smolstr!("⁅{s}"))
+        .map(|s| Chunk::new(Some(""), Some(s)))
 }

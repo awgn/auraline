@@ -1,9 +1,9 @@
-use crate::options::Options;
+use crate::{chunk::Chunk, options::Options};
 use smol_str::{format_smolstr, SmolStr, SmolStrBuilder};
-use tokio::fs;
 use std::path::Path;
+use tokio::fs;
 
-pub async fn show(_: &Options) -> Option<SmolStr> {
+pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
     let info = sysinfo::System::new_all();
     let mem_perc = info.used_memory() as f64 / info.total_memory() as f64 * 100.0;
     let huge_pages = get_hugepages_status().await;
@@ -12,11 +12,15 @@ pub async fn show(_: &Options) -> Option<SmolStr> {
     if let Some(huge_pages) = huge_pages {
         for hp in huge_pages {
             for page in hp.pages {
-                builder.push_str(&format_smolstr!(" 󰽿{}x{}", page.count, format_kb(page.size_kb)));
+                builder.push_str(&format_smolstr!(
+                    " 󰽿{}x{}",
+                    page.count,
+                    format_kb(page.size_kb)
+                ));
             }
         }
     }
-    Some(builder.finish())
+    Some(Chunk::info(builder.finish()))
 }
 
 /// Contains information about a specific size of huge pages for a NUMA node.
@@ -54,7 +58,10 @@ async fn process_hugepage_dir(path: &Path, node: Option<u32>) -> Option<HugePage
             // Kernel directories are named like "hugepages-2048kB".
             if file_name_str.starts_with("hugepages-") {
                 // Extract size in KB from the directory name.
-                if let Some(size_str) = file_name_str.strip_prefix("hugepages-").and_then(|s| s.strip_suffix("kB")) {
+                if let Some(size_str) = file_name_str
+                    .strip_prefix("hugepages-")
+                    .and_then(|s| s.strip_suffix("kB"))
+                {
                     if let Ok(size_kb) = size_str.parse::<u64>() {
                         // Path to the file that contains the number of allocated pages.
                         let nr_hugepages_path = entry.path().join("nr_hugepages");
@@ -74,7 +81,10 @@ async fn process_hugepage_dir(path: &Path, node: Option<u32>) -> Option<HugePage
     }
 
     if !pages_info.is_empty() {
-        Some(HugePage { node, pages: pages_info })
+        Some(HugePage {
+            node,
+            pages: pages_info,
+        })
     } else {
         None
     }
@@ -106,7 +116,8 @@ pub async fn get_hugepages_status() -> Option<Vec<HugePage>> {
                 if let Some(node_id) = file_name_str.strip_prefix("node") {
                     if let Ok(node_id) = node_id.parse::<u32>() {
                         let hugepages_path = entry.path().join("hugepages");
-                        if let Some(hp) = process_hugepage_dir(&hugepages_path, Some(node_id)).await {
+                        if let Some(hp) = process_hugepage_dir(&hugepages_path, Some(node_id)).await
+                        {
                             hugepages.push(hp);
                         }
                     }

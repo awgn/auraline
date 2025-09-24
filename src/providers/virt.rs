@@ -1,4 +1,4 @@
-use crate::{cmd::CMD, options::Options};
+use crate::{chunk::Chunk, cmd::CMD, options::Options};
 use phf::phf_map;
 use smol_str::{SmolStr, ToSmolStr};
 
@@ -53,7 +53,7 @@ static VIRTUALIZATION_MAP: phf::Map<&'static str, VirtualizationInfo> = phf_map!
     "container-other" => VirtualizationInfo { icon: "", color: "#A0A0A0", cterm_color: "247", name: "Unknown Container" },
 };
 
-pub async fn show(_: &Options) -> Option<SmolStr> {
+pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
     let virt = CMD
         .exec::<_, &'static str>("systemd-detect-virt", [])
         .await?;
@@ -63,10 +63,10 @@ pub async fn show(_: &Options) -> Option<SmolStr> {
     };
 
     icon.map(|ico| {
-        if ico.is_empty() {
+        Chunk::info(if ico.is_empty() {
             virt.to_smolstr()
         } else {
             ico.to_smolstr()
-        }
+        })
     })
 }

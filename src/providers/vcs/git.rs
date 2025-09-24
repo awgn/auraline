@@ -1,3 +1,4 @@
+use crate::chunk::Chunk;
 use crate::style::to_superscript;
 use crate::{cmd::CMD, options::Options};
 use itertools::Itertools;
@@ -11,16 +12,11 @@ macro_rules! git {
     };
 }
 
-#[inline]
-pub async fn git_describe(opts: &Options) -> Option<SmolStr> {
-    if opts.fast {
-        git_describe_fast().await
-    } else {
-        git_describe_slow().await
-    }
+pub async fn git_describe(opts: &Options) -> Option<Chunk<SmolStr>> {
+    git_describe_cmd(opts).await.map(Chunk::info)
 }
 
-pub async fn git_describe_slow() -> Option<SmolStr> {
+async fn git_describe_cmd(_opts: &Options) -> Option<SmolStr> {
     git!("describe", "--abbrev=7", "--always", "--tag", "--long")
         .await
         .map(|s| {
@@ -36,14 +32,7 @@ pub async fn git_describe_slow() -> Option<SmolStr> {
         })
 }
 
-pub async fn git_describe_fast() -> Option<SmolStr> {
-    git!("rev-parse", "--short", "HEAD")
-        .await
-        .filter(|s| !s.is_empty())
-        .map(|s| s.trim().to_smolstr())
-}
-
-pub async fn git_branch_name(_: &Options) -> Option<SmolStr> {
+async fn git_branch_name(_: &Options) -> Option<SmolStr> {
     let (branch, describe_exact_match, rev_parse) = join!(
         git_branch_show(),
         git_describe_exact_match(),
@@ -53,21 +42,23 @@ pub async fn git_branch_name(_: &Options) -> Option<SmolStr> {
     branch.or(describe_exact_match).or(rev_parse)
 }
 
-pub async fn git_branch_show() -> Option<SmolStr> {
-    git!("branch", "--show")
-        .await
-        .filter(|s| !s.is_empty())
-        .map(|s| s.trim().to_smolstr())
+pub async fn git_branch(opts: &Options) -> Option<Chunk<SmolStr>> {
+    let icon = git_branch_icon(opts).await;
+    let info = git_branch_name(opts).await;
+    match (icon, info) {
+        (None, None) => None,
+        (icon, info) => Some(Chunk::new(icon, info)),
+    }
 }
 
-pub async fn git_describe_exact_match() -> Option<SmolStr> {
+async fn git_describe_exact_match() -> Option<SmolStr> {
     git!("describe", "--exact-match")
         .await
         .filter(|s| !s.is_empty())
         .map(|s| s.trim().to_smolstr().replace_smolstr("~", "↓"))
 }
 
-pub async fn git_rev_parse(origin: bool) -> Option<SmolStr> {
+async fn git_rev_parse(origin: bool) -> Option<SmolStr> {
     git!(
         "rev-parse",
         "--abbrev-ref",
@@ -78,14 +69,11 @@ pub async fn git_rev_parse(origin: bool) -> Option<SmolStr> {
     .and_then(|s| s.trim().split('/').next_back().map(Into::into))
 }
 
-pub async fn git_name_rev(fast: bool) -> Option<SmolStr> {
-    if fast {
-        return None;
-    }
+async fn git_name_rev(_opts: &Options) -> Option<SmolStr> {
     let mut result = git!("name-rev", "--name-only", "HEAD").await?;
     for (o, n) in &[
-        ("remotes/origin/", "ᐲ•"),
-        ("remotes/", "⟢•"),
+        ("remotes/origin/", "↪"),
+        ("remotes/", "↪"),
         ("tags/", ""),
         ("~", "↓"),
     ] {
@@ -94,11 +82,11 @@ pub async fn git_name_rev(fast: bool) -> Option<SmolStr> {
     Some(result)
 }
 
-pub async fn git_commit_name(opts: &Options) -> Option<SmolStr> {
+pub async fn git_commit(opts: &Options) -> Option<Chunk<SmolStr>> {
     let (name_rev, branch_name, descr) = join!(
-        git_name_rev(opts.fast),
+        git_name_rev(opts),
         git_branch_name(opts),
-        git_describe(opts)
+        git_describe_cmd(opts)
     );
 
     let name_rev = name_rev?;
@@ -115,10 +103,10 @@ pub async fn git_commit_name(opts: &Options) -> Option<SmolStr> {
         }
     }
 
-    Some(name_rev)
+    Some(Chunk::info(name_rev))
 }
 
-pub async fn git_branch_icon(_: &Options) -> Option<&'static str> {
+async fn git_branch_icon(_: &Options) -> Option<&'static str> {
     let (local, origin) = join!(git_rev_parse(false), git_rev_parse(true));
     match local.as_deref() {
         None => None,
@@ -128,14 +116,14 @@ pub async fn git_branch_icon(_: &Options) -> Option<&'static str> {
     }
 }
 
-pub async fn git_status_icon(_: &Options) -> Option<SmolStr> {
+pub async fn git_status(_: &Options) -> Option<Chunk<SmolStr>> {
     git!("status", "--porcelain")
         .await
         .filter(|s| !s.is_empty())
-        .map(|s| merge_icons(s.lines().map(GitIcon::new).collect::<Vec<_>>()))
+        .map(|s| Chunk::info(merge_icons(s.lines().map(GitIcon::new).collect::<Vec<_>>())))
 }
 
-pub async fn git_worktree(_: &Options) -> Option<SmolStr> {
+pub async fn git_worktree(_: &Options) -> Option<Chunk<SmolStr>> {
     let path = env::current_dir().ok()?;
     let output = git!("worktree", "list").await?;
     output.lines().skip(1).find_map(|line| {
@@ -144,25 +132,25 @@ pub async fn git_worktree(_: &Options) -> Option<SmolStr> {
         if path.starts_with(worktree_path) {
             parts.next()?; // skip the branch
             let name = parts.collect::<Vec<_>>().join(" ");
-            Some(format_smolstr!("⌂{}", name))
+            Some(Chunk::new(Some("⌂"), Some(name.into())))
         } else {
             None
         }
     })
 }
 
-pub async fn git_stash_counter(_: &Options) -> Option<SmolStr> {
+pub async fn git_stash(_: &Options) -> Option<Chunk<SmolStr>> {
     git!("stash", "list")
         .await
         .filter(|s| !s.is_empty())
         .map(|s| {
             let mut buffer = itoa::Buffer::new();
             let n = buffer.format(s.lines().count());
-            format_smolstr!("≡{}", to_superscript(n))
+            Chunk::info(format_smolstr!("≡{}", to_superscript(n)))
         })
 }
 
-pub async fn git_ahead_behind_icon(_: &Options) -> Option<SmolStr> {
+pub async fn git_divergence(_: &Options) -> Option<Chunk<SmolStr>> {
     let (ahead, behind) = join!(
         git!("rev-list", "--count", "HEAD@{upstream}..HEAD"),
         git!("rev-list", "--count", "HEAD..HEAD@{upstream}")
@@ -173,9 +161,9 @@ pub async fn git_ahead_behind_icon(_: &Options) -> Option<SmolStr> {
 
     match (ahead.as_str(), behind.as_str()) {
         ("0" | "", "0" | "") => None,
-        ("0" | "", behind) => Some(format_smolstr!("↓{}", behind)),
-        (ahead, "0" | "") => Some(format_smolstr!("↑{}", ahead)),
-        (ahead, behind) => Some(format_smolstr!("↑{}↓{}", ahead, behind)),
+        ("0" | "", behind) => Some(Chunk::info(format_smolstr!("↓{}", behind))),
+        (ahead, "0" | "") => Some(Chunk::info(format_smolstr!("↑{}", ahead))),
+        (ahead, behind) => Some(Chunk::info(format_smolstr!("↑{}↓{}", ahead, behind))),
     }
 }
 
@@ -228,10 +216,11 @@ impl GitIcon {
             (Some(' '), Some('D')) => GitIcon(""), // Deleted in worktree only
             (Some(' '), Some('T')) => GitIcon("◇"), // Type changed in worktree only
             (Some(' '), Some('R')) => GitIcon("↻"), // Renamed in worktree
-            (Some(' '), Some('C')) => GitIcon("©"), // Copied in worktree
+            (Some(' '), Some('C')) => GitIcon("⊆"), // Copied in worktree
+            (Some(' '), Some('A')) => GitIcon("⊹"), // Unchanged in index, added in worktree
 
-            (Some('?'), Some('?')) => GitIcon(""), // Untracked
-            (Some('!'), Some('!')) => GitIcon(""), // Ignored
+            (Some('?'), Some('?')) => GitIcon("⁇"), // Untracked
+            (Some('!'), Some('!')) => GitIcon(""),  // Ignored
 
             // Default fallback
             _ => GitIcon(""), // Unknown state
@@ -244,12 +233,12 @@ impl GitIcon {
     }
 }
 
-#[inline]
 fn merge_icons(icons: Vec<GitIcon>) -> SmolStr {
     let mut builder = SmolStrBuilder::new();
     icons
         .into_iter()
         .filter(|i| !i.is_empty()) // Directly filter out empty icons
+        .sorted()
         .chunk_by(|icon| *icon) // Efficiently group by GitIcon value using chunk_by
         .into_iter()
         .for_each(|(icon, group)| builder.push_str(&render_icon((icon, group.count()))));
@@ -257,7 +246,6 @@ fn merge_icons(icons: Vec<GitIcon>) -> SmolStr {
     builder.finish()
 }
 
-#[inline]
 fn render_icon((icon, n): (GitIcon, usize)) -> SmolStr {
     let mut builder = SmolStrBuilder::new();
     if n == 1 {
@@ -269,4 +257,11 @@ fn render_icon((icon, n): (GitIcon, usize)) -> SmolStr {
         builder.push_str(&to_superscript(numb));
     }
     builder.finish()
+}
+
+async fn git_branch_show() -> Option<SmolStr> {
+    git!("branch", "--show")
+        .await
+        .filter(|s| !s.is_empty())
+        .map(|s| s.trim().to_smolstr())
 }

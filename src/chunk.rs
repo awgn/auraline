@@ -1,0 +1,61 @@
+use std::fmt::Display;
+
+use owo_colors::style;
+use owo_colors::Style;
+use owo_colors::Styled;
+
+pub struct Chunk<T> {
+    icon: Option<Styled<&'static str>>,
+    info: Option<Styled<T>>,
+}
+
+#[derive(Default, Debug)]
+pub struct Unit;
+impl Display for Unit {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
+}
+
+impl<T: Default> Chunk<T> {
+    pub fn new(icon: Option<&'static str>, info: Option<T>) -> Self {
+        Self {
+            icon: icon.map(|i| style().style(i)),
+            info: info.map(|i| style().style(i)),
+        }
+    }
+
+    pub fn icon(icon: &'static str) -> Self {
+        Self {
+            icon: Some(style().style(icon)),
+            info: None,
+        }
+    }
+
+    pub fn info(info: T) -> Self {
+        Self {
+            icon: None,
+            info: Some(style().style(info)),
+        }
+    }
+
+    pub fn with_style(mut self, icon_s: Style, info_s: Style) -> Self {
+        let icon = self.icon.as_mut().map(|i| std::mem::take(i.inner_mut()));
+        let info = self.info.as_mut().map(|i| std::mem::take(i.inner_mut()));
+        Self {
+            icon: icon.map(|i| icon_s.style(i)),
+            info: info.map(|i| info_s.style(i)),
+        }
+    }
+}
+
+impl<T: Display> Display for Chunk<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match (&self.icon, &self.info) {
+            (Some(icon), Some(info)) => write!(f, "{icon} {info}"),
+            (Some(icon), None) => write!(f, "{icon}"),
+            (None, Some(info)) => write!(f, "{info}"),
+            (None, None) => Ok(()),
+        }
+    }
+}

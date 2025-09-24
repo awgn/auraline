@@ -1,6 +1,9 @@
 use phf::phf_map;
 
-use crate::options::Options;
+use crate::{
+    chunk::{Chunk, Unit},
+    options::Options,
+};
 
 #[allow(dead_code)]
 pub struct OsInfo {
@@ -77,30 +80,34 @@ static OS_MAP: phf::Map<&'static str, OsInfo> = phf_map! {
 };
 
 // see few examples @ https://gist.github.com/natefoo/814c5bf936922dad97ff
-pub async fn lsb_icon() -> Option<&'static str> {
+pub async fn lsb_icon() -> Option<Chunk<Unit>> {
     let os_release = tokio::fs::read_to_string("/etc/os-release").await.ok()?;
     let id_line = os_release.lines().find(|line| line.starts_with("ID="))?;
     let id = id_line.trim_start_matches("ID=").trim_matches('"');
     OS_MAP
         .get(id)
-        .map(|info| info.icon)
-        .or_else(|| OS_MAP.get("linux").map(|info| info.icon))
+        .map(|info| Chunk::new(Some(info.icon), None))
+        .or_else(|| {
+            OS_MAP
+                .get("linux")
+                .map(|info| Chunk::new(Some(info.icon), None))
+        })
 }
 
-pub async fn show(opts: &Options) -> Option<&'static str> {
+pub async fn show(opts: &Options) -> Option<Chunk<Unit>> {
     if !opts.nerd_font {
         return None;
     }
     match std::env::consts::OS {
         "linux" => lsb_icon().await,
-        "windows" => OS_MAP.get("windows").map(|info| info.icon),
-        "macos" => OS_MAP.get("apple").map(|info| info.icon),
-        "ios" => OS_MAP.get("apple").map(|info| info.icon),
-        "openbsd" => OS_MAP.get("openbsd").map(|info| info.icon),
-        "freebsd" => OS_MAP.get("freebsd").map(|info| info.icon),
-        "netbsd" => OS_MAP.get("netbsd").map(|info| info.icon),
-        "apple" => OS_MAP.get("apple").map(|info| info.icon),
-        "illumos" => OS_MAP.get("illumos").map(|info| info.icon),
+        "windows" => OS_MAP.get("windows").map(|info| Chunk::icon(info.icon)),
+        "macos" => OS_MAP.get("apple").map(|info| Chunk::icon(info.icon)),
+        "ios" => OS_MAP.get("apple").map(|info| Chunk::icon(info.icon)),
+        "openbsd" => OS_MAP.get("openbsd").map(|info| Chunk::icon(info.icon)),
+        "freebsd" => OS_MAP.get("freebsd").map(|info| Chunk::icon(info.icon)),
+        "netbsd" => OS_MAP.get("netbsd").map(|info| Chunk::icon(info.icon)),
+        "apple" => OS_MAP.get("apple").map(|info| Chunk::icon(info.icon)),
+        "illumos" => OS_MAP.get("illumos").map(|info| Chunk::icon(info.icon)),
         _ => None,
     }
 }
