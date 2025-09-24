@@ -1,7 +1,7 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use scopeguard::defer;
 use crate::{chunk::Chunk, options::Options};
+use scopeguard::defer;
 use smol_str::{format_smolstr, SmolStr};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const AURALINE_CMD_START: &str = "auraline_cmd_start";
 
@@ -29,19 +29,13 @@ fn format_duration(duration: Duration) -> Chunk<SmolStr> {
     let secs = duration.as_secs_f64();
 
     if secs < 0.000001 {
-        return Chunk::new(
-            Some("󰄉"),
-            Some(format_smolstr!("{}ns", duration.as_nanos())),
-        );
+        return Chunk::new("󰄉", format_smolstr!("{}ns", duration.as_nanos()));
     }
     if secs < 0.001 {
-        return Chunk::new(
-            Some("󰄉"),
-            Some(format_smolstr!("{:.0}μs", secs * 1_000_000.0)),
-        );
+        return Chunk::new("󰄉", format_smolstr!("{:.0}μs", secs * 1_000_000.0));
     }
     if secs < 1.0 {
-        return Chunk::new(Some("󰄉"), Some(format_smolstr!("{:.0}ms", secs * 1_000.0)));
+        return Chunk::new("󰄉", format_smolstr!("{:.0}ms", secs * 1_000.0));
     }
-    Chunk::new(Some("󰄉"), Some(format_smolstr!("{:.2}s", secs)))
+    Chunk::new("󰄉", format_smolstr!("{:.2}s", secs))
 }

@@ -14,7 +14,7 @@ pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
         .collect::<BTreeSet<_>>();
     let names: Vec<&SmolStr> = uniq.iter().collect();
     Some(Chunk::new(
-        Some("󰛳"),
-        Some(names.iter().copied().join(",").to_smolstr()),
+        "󰛳",
+        names.iter().copied().join(",").to_smolstr(),
     )) // FIXME: avoid allocation here
 }

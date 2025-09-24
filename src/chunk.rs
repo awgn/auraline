@@ -18,10 +18,10 @@ impl Display for Unit {
 }
 
 impl<T: Default> Chunk<T> {
-    pub fn new(icon: Option<&'static str>, info: Option<T>) -> Self {
+    pub fn new(icon: &'static str, info: T) -> Self {
         Self {
-            icon: icon.map(|i| style().style(i)),
-            info: info.map(|i| style().style(i)),
+            icon: Some(style().style(icon)),
+            info: Some(style().style(info)),
         }
     }
 

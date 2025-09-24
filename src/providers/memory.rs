@@ -1,11 +1,13 @@
 use crate::{chunk::Chunk, options::Options};
 use smol_str::{format_smolstr, SmolStr, SmolStrBuilder};
-use sysinfo::{MemoryRefreshKind, RefreshKind};
 use std::path::Path;
+use sysinfo::{MemoryRefreshKind, RefreshKind};
 use tokio::fs;
 
 pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
-    let info = sysinfo::System::new_with_specifics(RefreshKind::nothing().with_memory(MemoryRefreshKind::everything()));
+    let info = sysinfo::System::new_with_specifics(
+        RefreshKind::nothing().with_memory(MemoryRefreshKind::everything()),
+    );
     let mem_perc = info.used_memory() as f64 / info.total_memory() as f64 * 100.0;
     let mut builder = SmolStrBuilder::new();
     builder.push_str(&format_smolstr!("{:.1}%", mem_perc));

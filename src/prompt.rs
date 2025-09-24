@@ -42,7 +42,7 @@ macro_rules! item {
         let style = $style;
         tokio::spawn(async move {
             let begin = std::time::Instant::now();
-            let res =$provider(&cloned_opts)
+            let res = $provider(&cloned_opts)
                 .await
                 .map(|c| c.with_style(style.0, style.1));
             (provider_name(&$provider), begin.elapsed(), res)

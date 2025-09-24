@@ -47,7 +47,9 @@ pub async fn git_branch(opts: &Options) -> Option<Chunk<SmolStr>> {
     let info = git_branch_name(opts).await;
     match (icon, info) {
         (None, None) => None,
-        (icon, info) => Some(Chunk::new(icon, info)),
+        (Some(icon), None) => Some(Chunk::icon(icon)),
+        (None, Some(info)) => Some(Chunk::info(info)),
+        (Some(icon), Some(info)) => Some(Chunk::new(icon, info)),
     }
 }
 
@@ -132,7 +134,7 @@ pub async fn git_worktree(_: &Options) -> Option<Chunk<SmolStr>> {
         if path.starts_with(worktree_path) {
             parts.next()?; // skip the branch
             let name = parts.collect::<Vec<_>>().join(" ");
-            Some(Chunk::new(Some("⌂"), Some(name.into())))
+            Some(Chunk::new("⌂", name.into()))
         } else {
             None
         }

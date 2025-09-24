@@ -86,12 +86,8 @@ pub async fn lsb_icon() -> Option<Chunk<Unit>> {
     let id = id_line.trim_start_matches("ID=").trim_matches('"');
     OS_MAP
         .get(id)
-        .map(|info| Chunk::new(Some(info.icon), None))
-        .or_else(|| {
-            OS_MAP
-                .get("linux")
-                .map(|info| Chunk::new(Some(info.icon), None))
-        })
+        .map(|info| Chunk::icon(info.icon))
+        .or_else(|| OS_MAP.get("linux").map(|info| Chunk::icon(info.icon)))
 }
 
 pub async fn show(opts: &Options) -> Option<Chunk<Unit>> {

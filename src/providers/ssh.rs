@@ -7,8 +7,8 @@ pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
     let parts: Vec<&str> = ssh_connection.split_whitespace().collect();
     if parts.len() >= 4 {
         Some(Chunk::new(
-            Some("⇄"),
-            Some(format_smolstr!("{}:{}", parts[2], parts[3])),
+            "⇄",
+            format_smolstr!("{}:{}", parts[2], parts[3]),
         ))
     } else {
         None

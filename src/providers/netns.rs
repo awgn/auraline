@@ -6,5 +6,5 @@ pub async fn namespace(_: &Options) -> Option<Chunk<SmolStr>> {
     CMD.exec("ip", ["netns", "identify"])
         .await
         .filter(|s| !s.is_empty())
-        .map(|s| Chunk::new(Some(""), Some(s)))
+        .map(|s| Chunk::new("", s))
 }
