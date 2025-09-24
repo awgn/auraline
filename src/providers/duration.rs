@@ -1,5 +1,5 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
+use scopeguard::defer;
 use crate::{chunk::Chunk, options::Options};
 use smol_str::{format_smolstr, SmolStr};
 
@@ -13,10 +13,12 @@ pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
     let ppid = unsafe { libc::getppid() };
     let cmd_start_time = format!("/tmp/{}.{}", AURALINE_CMD_START, ppid);
     let start_time_str = tokio::fs::read_to_string(&cmd_start_time).await.ok()?;
+    defer! {
+        let _ = std::fs::remove_file(&cmd_start_time);
+    };
     let start_nanos = start_time_str.parse::<u128>().ok()?;
     if end_nanos > start_nanos {
         let duration = Duration::from_nanos((end_nanos - start_nanos) as u64);
-        let _ = tokio::fs::remove_file(&cmd_start_time).await;
         return Some(format_duration(duration));
     }
 
