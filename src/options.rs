@@ -14,4 +14,7 @@ pub struct Options {
 
     #[clap(long, help = "Specify the exit-code of the last command")]
     pub exit_code: Option<u8>,
+
+    #[clap(long, help = "Enable timing mode (dev)")]
+    pub timing: bool,
 }

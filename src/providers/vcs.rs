@@ -1,5 +1,5 @@
 pub mod git;
-use std::{future::Future, path::PathBuf};
+use std::{future::Future, path::PathBuf, pin::Pin};
 
 use crate::{chunk::Chunk, options::Options};
 use futures::future::Shared;
@@ -17,7 +17,7 @@ pub enum VcsKind {
 
 pub async fn divergence(
     opts: &Options,
-    vcs: Shared<impl Future<Output = Option<VcsKind>>>,
+    vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>
 ) -> Option<Chunk<SmolStr>> {
     match vcs.await {
         Some(VcsKind::Git) => git::git_divergence(opts).await,
@@ -31,7 +31,7 @@ pub async fn divergence(
 
 pub async fn describe(
     opts: &Options,
-    vcs: Shared<impl Future<Output = Option<VcsKind>>>,
+    vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>
 ) -> Option<Chunk<SmolStr>> {
     match vcs.await {
         Some(VcsKind::Git) => git::git_describe(opts).await,
@@ -45,7 +45,7 @@ pub async fn describe(
 
 pub async fn commit(
     opts: &Options,
-    vcs: Shared<impl Future<Output = Option<VcsKind>>>,
+    vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>
 ) -> Option<Chunk<SmolStr>> {
     match vcs.await {
         Some(VcsKind::Git) => git::git_commit(opts).await,
@@ -59,7 +59,7 @@ pub async fn commit(
 
 pub async fn worktree(
     opts: &Options,
-    vcs: Shared<impl Future<Output = Option<VcsKind>>>,
+    vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>
 ) -> Option<Chunk<SmolStr>> {
     match vcs.await {
         Some(VcsKind::Git) => git::git_worktree(opts).await,
@@ -73,7 +73,7 @@ pub async fn worktree(
 
 pub async fn stash(
     opts: &Options,
-    vcs: Shared<impl Future<Output = Option<VcsKind>>>,
+    vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>
 ) -> Option<Chunk<SmolStr>> {
     match vcs.await {
         Some(VcsKind::Git) => git::git_stash(opts).await,
@@ -87,7 +87,7 @@ pub async fn stash(
 
 pub async fn branch(
     opts: &Options,
-    vcs: Shared<impl Future<Output = Option<VcsKind>>>,
+    vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>
 ) -> Option<Chunk<SmolStr>> {
     match vcs.await {
         Some(VcsKind::Git) => git::git_branch(opts).await,
@@ -101,7 +101,7 @@ pub async fn branch(
 
 pub async fn status(
     opts: &Options,
-    vcs: Shared<impl Future<Output = Option<VcsKind>>>,
+    vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>
 ) -> Option<Chunk<SmolStr>> {
     match vcs.await {
         Some(VcsKind::Git) => git::git_status(opts).await,

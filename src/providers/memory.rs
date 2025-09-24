@@ -1,14 +1,15 @@
 use crate::{chunk::Chunk, options::Options};
 use smol_str::{format_smolstr, SmolStr, SmolStrBuilder};
+use sysinfo::{MemoryRefreshKind, RefreshKind};
 use std::path::Path;
 use tokio::fs;
 
 pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
-    let info = sysinfo::System::new_all();
+    let info = sysinfo::System::new_with_specifics(RefreshKind::nothing().with_memory(MemoryRefreshKind::everything()));
     let mem_perc = info.used_memory() as f64 / info.total_memory() as f64 * 100.0;
-    let huge_pages = get_hugepages_status().await;
     let mut builder = SmolStrBuilder::new();
     builder.push_str(&format_smolstr!("{:.1}%", mem_perc));
+    let huge_pages = get_hugepages_status().await;
     if let Some(huge_pages) = huge_pages {
         for hp in huge_pages {
             for page in hp.pages {

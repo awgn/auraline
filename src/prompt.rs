@@ -7,6 +7,7 @@ use smol_str::SmolStr;
 use std::env;
 use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::task::JoinError;
 
 use crate::providers::duration::show as duration_show;
@@ -40,9 +41,11 @@ macro_rules! item {
         let cloned_opts = Arc::clone(&$opt);
         let style = $style;
         tokio::spawn(async move {
-            $provider(&cloned_opts)
+            let begin = std::time::Instant::now();
+            let res =$provider(&cloned_opts)
                 .await
-                .map(|c| c.with_style(style.0, style.1))
+                .map(|c| c.with_style(style.0, style.1));
+            (provider_name(&$provider), begin.elapsed(), res)
         })
     }};
     ($provider:expr, $opt:expr, $vcs:expr, $style:expr) => {{
@@ -50,19 +53,21 @@ macro_rules! item {
         let style = $style;
         let vcs = $vcs.clone();
         tokio::spawn(async move {
-            $provider(&cloned_opts, vcs)
+            let begin = std::time::Instant::now();
+            let res = $provider(&cloned_opts, vcs)
                 .await
-                .map(|c| c.with_style(style.0, style.1))
+                .map(|c| c.with_style(style.0, style.1));
+            (provider_name(&$provider), begin.elapsed(), res)
         })
     }};
 }
 
-type ResultUnit = Result<Option<Chunk<Unit>>, JoinError>;
-type ResultStatic = Result<Option<Chunk<&'static str>>, JoinError>;
-type ResultSmolStr = Result<Option<Chunk<SmolStr>>, JoinError>;
+type ResultUnit = Result<(&'static str, Duration, Option<Chunk<Unit>>), JoinError>;
+type ResultStatic = Result<(&'static str, Duration, Option<Chunk<&'static str>>), JoinError>;
+type ResultSmolStr = Result<(&'static str, Duration, Option<Chunk<SmolStr>>), JoinError>;
 
 pub async fn print_prompt(opts: Options) -> Result<(), JoinError> {
-    let vcs = detect_vcs(env::current_dir().unwrap()).shared();
+    let vcs = detect_vcs(env::current_dir().unwrap()).boxed().shared();
     let opts = Arc::new(opts);
 
     let color = build_color_style(opts.theme.as_deref());
@@ -89,23 +94,53 @@ pub async fn print_prompt(opts: Options) -> Result<(), JoinError> {
     ];
 
     let styled_parts = styled_prompt.hjoin().await;
-    styled_parts.map(poly_fn!(
-        |chunk: ResultUnit| -> () {
-            if let Some(c) = chunk.expect("Task panicked") {
-                print!("{c} ")
-            }
-        },
-        |chunk: ResultStatic| -> () {
-            if let Some(c) = chunk.expect("Task panicked") {
-                print!("{c} ")
-            }
-        },
-        |chunk: ResultSmolStr| -> () {
-            if let Some(s) = chunk.expect("Task panicked") {
-                print!("{s} ")
-            }
-        },
-    ));
+
+    if opts.timing {
+        styled_parts.map(poly_fn!(
+            |chunk: ResultUnit| -> () {
+                let (f, dur, c) = chunk.expect("Task panicked");
+                if let Some(chunk) = c {
+                    println!("{f:<40} -> {dur:>15?} : ({chunk})");
+                } else {
+                    println!("{f:<40} -> {dur:>15?} : (_)");
+                }
+            },
+            |chunk: ResultStatic| -> () {
+                let (f, dur, c) = chunk.expect("Task panicked");
+                if let Some(chunk) = c {
+                    println!("{f:<40} -> {dur:>15?} : ({chunk})");
+                } else {
+                    println!("{f:<40} -> {dur:>15?} : (_)");
+                }
+            },
+            |chunk: ResultSmolStr| -> () {
+                let (f, dur, c) = chunk.expect("Task panicked");
+                if let Some(chunk) = c {
+                    println!("{f:<40} -> {dur:>15?} : ({chunk})");
+                } else {
+                    println!("{f:<40} -> {dur:>15?} : (_)");
+                }
+            },
+        ));
+    } else {
+        styled_parts.map(poly_fn!(
+            |chunk: ResultUnit| -> () {
+                if let (_, _, Some(c)) = chunk.expect("Task panicked") {
+                    print!("{c} ")
+                }
+            },
+            |chunk: ResultStatic| -> () {
+                if let (_, _, Some(c)) = chunk.expect("Task panicked") {
+                    print!("{c} ")
+                }
+            },
+            |chunk: ResultSmolStr| -> () {
+                if let (_, _, Some(s)) = chunk.expect("Task panicked") {
+                    print!("{s} ")
+                }
+            },
+        ));
+    }
 
     Ok(())
 }
@@ -136,4 +171,9 @@ where
             tail: tail_res,
         }
     }
+}
+
+#[inline]
+fn provider_name<T>(_: &T) -> &'static str {
+    std::any::type_name::<T>()
 }
