@@ -12,7 +12,7 @@ macro_rules! git {
     };
 }
 
-pub async fn git_describe(opts: &Options) -> Option<Chunk<SmolStr>> {
+pub async fn describe(opts: &Options) -> Option<Chunk<SmolStr>> {
     git_describe_cmd(opts).await.map(Chunk::info)
 }
 
@@ -42,7 +42,7 @@ async fn git_branch_name(_: &Options) -> Option<SmolStr> {
     branch.or(describe_exact_match).or(rev_parse)
 }
 
-pub async fn git_branch(opts: &Options) -> Option<Chunk<SmolStr>> {
+pub async fn branch(opts: &Options) -> Option<Chunk<SmolStr>> {
     let icon = git_branch_icon(opts).await;
     let info = git_branch_name(opts).await;
     match (icon, info) {
@@ -84,7 +84,7 @@ async fn git_name_rev(_opts: &Options) -> Option<SmolStr> {
     Some(result)
 }
 
-pub async fn git_commit(opts: &Options) -> Option<Chunk<SmolStr>> {
+pub async fn commit(opts: &Options) -> Option<Chunk<SmolStr>> {
     let (name_rev, branch_name, descr) = join!(
         git_name_rev(opts),
         git_branch_name(opts),
@@ -118,14 +118,14 @@ async fn git_branch_icon(_: &Options) -> Option<&'static str> {
     }
 }
 
-pub async fn git_status(_: &Options) -> Option<Chunk<SmolStr>> {
+pub async fn status(_: &Options) -> Option<Chunk<SmolStr>> {
     git!("status", "--porcelain")
         .await
         .filter(|s| !s.is_empty())
         .map(|s| Chunk::info(merge_icons(s.lines().map(GitIcon::new).collect::<Vec<_>>())))
 }
 
-pub async fn git_worktree(_: &Options) -> Option<Chunk<SmolStr>> {
+pub async fn worktree(_: &Options) -> Option<Chunk<SmolStr>> {
     let path = env::current_dir().ok()?;
     let output = git!("worktree", "list").await?;
     output.lines().skip(1).find_map(|line| {
@@ -141,7 +141,7 @@ pub async fn git_worktree(_: &Options) -> Option<Chunk<SmolStr>> {
     })
 }
 
-pub async fn git_stash(_: &Options) -> Option<Chunk<SmolStr>> {
+pub async fn stash(_: &Options) -> Option<Chunk<SmolStr>> {
     git!("stash", "list")
         .await
         .filter(|s| !s.is_empty())
@@ -152,7 +152,7 @@ pub async fn git_stash(_: &Options) -> Option<Chunk<SmolStr>> {
         })
 }
 
-pub async fn git_divergence(_: &Options) -> Option<Chunk<SmolStr>> {
+pub async fn divergence(_: &Options) -> Option<Chunk<SmolStr>> {
     let (ahead, behind) = join!(
         git!("rev-list", "--count", "HEAD@{upstream}..HEAD"),
         git!("rev-list", "--count", "HEAD..HEAD@{upstream}")

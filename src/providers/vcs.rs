@@ -1,4 +1,9 @@
 pub mod git;
+pub mod hg;
+pub mod jj;
+pub mod pijul;
+pub mod darcs;
+
 use std::{future::Future, path::PathBuf, pin::Pin};
 
 use crate::{chunk::Chunk, options::Options};
@@ -20,11 +25,11 @@ pub async fn divergence(
     vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>,
 ) -> Option<Chunk<SmolStr>> {
     match vcs.await {
-        Some(VcsKind::Git) => git::git_divergence(opts).await,
-        Some(VcsKind::Hg) => None,
-        Some(VcsKind::Pijul) => None,
-        Some(VcsKind::Jj) => None,
-        Some(VcsKind::Darcs) => None,
+        Some(VcsKind::Git) => git::divergence(opts).await,
+        Some(VcsKind::Hg) => hg::divergence(opts).await,
+        Some(VcsKind::Pijul) => pijul::divergence(opts).await,
+        Some(VcsKind::Jj) => jj::divergence(opts).await,
+        Some(VcsKind::Darcs) => darcs::divergence(opts).await,
         None => None,
     }
 }
@@ -34,11 +39,11 @@ pub async fn describe(
     vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>,
 ) -> Option<Chunk<SmolStr>> {
     match vcs.await {
-        Some(VcsKind::Git) => git::git_describe(opts).await,
-        Some(VcsKind::Hg) => None,
-        Some(VcsKind::Pijul) => None,
-        Some(VcsKind::Jj) => None,
-        Some(VcsKind::Darcs) => None,
+        Some(VcsKind::Git) => git::describe(opts).await,
+        Some(VcsKind::Hg) => hg::describe(opts).await,
+        Some(VcsKind::Pijul) => pijul::describe(opts).await,
+        Some(VcsKind::Jj) => jj::describe(opts).await,
+        Some(VcsKind::Darcs) => darcs::describe(opts).await,
         None => None,
     }
 }
@@ -48,11 +53,11 @@ pub async fn commit(
     vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>,
 ) -> Option<Chunk<SmolStr>> {
     match vcs.await {
-        Some(VcsKind::Git) => git::git_commit(opts).await,
-        Some(VcsKind::Hg) => None,
-        Some(VcsKind::Pijul) => None,
-        Some(VcsKind::Jj) => None,
-        Some(VcsKind::Darcs) => None,
+        Some(VcsKind::Git) => git::commit(opts).await,
+        Some(VcsKind::Hg) => hg::commit(opts).await,
+        Some(VcsKind::Pijul) => pijul::commit(opts).await,
+        Some(VcsKind::Jj) => jj::commit(opts).await,
+        Some(VcsKind::Darcs) => darcs::commit(opts).await,
         None => None,
     }
 }
@@ -62,11 +67,11 @@ pub async fn worktree(
     vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>,
 ) -> Option<Chunk<SmolStr>> {
     match vcs.await {
-        Some(VcsKind::Git) => git::git_worktree(opts).await,
-        Some(VcsKind::Hg) => None,
-        Some(VcsKind::Pijul) => None,
-        Some(VcsKind::Jj) => None,
-        Some(VcsKind::Darcs) => None,
+        Some(VcsKind::Git) => git::worktree(opts).await,
+        Some(VcsKind::Hg) => hg::worktree(opts).await,
+        Some(VcsKind::Pijul) => pijul::worktree(opts).await,
+        Some(VcsKind::Jj) => jj::worktree(opts).await,
+        Some(VcsKind::Darcs) => darcs::worktree(opts).await,
         None => None,
     }
 }
@@ -76,11 +81,11 @@ pub async fn stash(
     vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>,
 ) -> Option<Chunk<SmolStr>> {
     match vcs.await {
-        Some(VcsKind::Git) => git::git_stash(opts).await,
-        Some(VcsKind::Hg) => None,
-        Some(VcsKind::Pijul) => None,
-        Some(VcsKind::Jj) => None,
-        Some(VcsKind::Darcs) => None,
+        Some(VcsKind::Git) => git::stash(opts).await,
+        Some(VcsKind::Hg) => hg::stash(opts).await,
+        Some(VcsKind::Pijul) => pijul::stash(opts).await,
+        Some(VcsKind::Jj) => jj::stash(opts).await,
+        Some(VcsKind::Darcs) => darcs::stash(opts).await,
         None => None,
     }
 }
@@ -90,11 +95,11 @@ pub async fn branch(
     vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>,
 ) -> Option<Chunk<SmolStr>> {
     match vcs.await {
-        Some(VcsKind::Git) => git::git_branch(opts).await,
-        Some(VcsKind::Hg) => None,
-        Some(VcsKind::Pijul) => None,
-        Some(VcsKind::Jj) => None,
-        Some(VcsKind::Darcs) => None,
+        Some(VcsKind::Git) => git::branch(opts).await,
+        Some(VcsKind::Hg) => hg::branch(opts).await,
+        Some(VcsKind::Pijul) => pijul::branch(opts).await,
+        Some(VcsKind::Jj) => jj::branch(opts).await,
+        Some(VcsKind::Darcs) => darcs::branch(opts).await,
         None => None,
     }
 }
@@ -104,11 +109,11 @@ pub async fn status(
     vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>,
 ) -> Option<Chunk<SmolStr>> {
     match vcs.await {
-        Some(VcsKind::Git) => git::git_status(opts).await,
-        Some(VcsKind::Hg) => None,
-        Some(VcsKind::Pijul) => None,
-        Some(VcsKind::Jj) => None,
-        Some(VcsKind::Darcs) => None,
+        Some(VcsKind::Git) => git::status(opts).await,
+        Some(VcsKind::Hg) => hg::status(opts).await,
+        Some(VcsKind::Pijul) => pijul::status(opts).await,
+        Some(VcsKind::Jj) => jj::status(opts).await,
+        Some(VcsKind::Darcs) => darcs::status(opts).await,
         None => None,
     }
 }
