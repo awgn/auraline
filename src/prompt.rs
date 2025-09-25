@@ -23,7 +23,6 @@ use crate::providers::os::show as os_show;
 use crate::providers::ssh::show as ssh_show;
 use crate::providers::vcs::branch as vcs_branch;
 use crate::providers::vcs::commit as vcs_commit;
-use crate::providers::vcs::describe as vcs_describe;
 use crate::providers::vcs::detect_vcs;
 use crate::providers::vcs::divergence as vcs_divergence;
 use crate::providers::vcs::stash as vcs_stash;
@@ -85,9 +84,8 @@ pub async fn print_prompt(opts: Options) -> Result<(), JoinError> {
         item![vcs_branch, opts, vcs, (bold, color.bold())],
         item![vcs_status, opts, vcs, (bold, color)],
         item![vcs_stash, opts, vcs, (bold, def)],
-        item![vcs_worktree, opts, vcs, (bold, bold)],
+        item![vcs_worktree, opts, vcs, (bold, bold.dimmed())],
         item![vcs_commit, opts, vcs, (bold, bold)],
-        item![vcs_describe, opts, vcs, (bold, def)],
         item![vcs_divergence, opts, vcs, (bold, def)],
         item![duration_show, opts, (def, def.dimmed())],
         item![exit_code_show, opts, (bold.red(), bold)],

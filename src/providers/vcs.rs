@@ -1,14 +1,15 @@
+pub mod darcs;
 pub mod git;
 pub mod hg;
 pub mod jj;
 pub mod pijul;
-pub mod darcs;
 
 use std::{future::Future, path::PathBuf, pin::Pin};
 
-use crate::{chunk::Chunk, options::Options};
+use crate::{chunk::Chunk, options::Options, style::to_superscript};
 use futures::future::Shared;
-use smol_str::SmolStr;
+use itertools::Itertools;
+use smol_str::{SmolStr, SmolStrBuilder};
 use tokio::fs;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,121 +21,92 @@ pub enum VcsKind {
     Darcs,
 }
 
-pub async fn divergence(
-    opts: &Options,
-    vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>,
-) -> Option<Chunk<SmolStr>> {
+type FutureVsc = Pin<Box<dyn Future<Output = Option<(VcsKind, PathBuf)>> + Send>>;
+
+pub async fn divergence(opts: &Options, vcs: Shared<FutureVsc>) -> Option<Chunk<SmolStr>> {
     match vcs.await {
-        Some(VcsKind::Git) => git::divergence(opts).await,
-        Some(VcsKind::Hg) => hg::divergence(opts).await,
-        Some(VcsKind::Pijul) => pijul::divergence(opts).await,
-        Some(VcsKind::Jj) => jj::divergence(opts).await,
-        Some(VcsKind::Darcs) => darcs::divergence(opts).await,
+        Some((VcsKind::Git, ref path)) => git::divergence(opts, path).await,
+        Some((VcsKind::Hg, ref path)) => hg::divergence(opts, path).await,
+        Some((VcsKind::Pijul, ref path)) => pijul::divergence(opts, path).await,
+        Some((VcsKind::Jj, ref path)) => jj::divergence(opts, path).await,
+        Some((VcsKind::Darcs, ref path)) => darcs::divergence(opts, path).await,
         None => None,
     }
 }
 
-pub async fn describe(
-    opts: &Options,
-    vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>,
-) -> Option<Chunk<SmolStr>> {
+pub async fn commit(opts: &Options, vcs: Shared<FutureVsc>) -> Option<Chunk<SmolStr>> {
     match vcs.await {
-        Some(VcsKind::Git) => git::describe(opts).await,
-        Some(VcsKind::Hg) => hg::describe(opts).await,
-        Some(VcsKind::Pijul) => pijul::describe(opts).await,
-        Some(VcsKind::Jj) => jj::describe(opts).await,
-        Some(VcsKind::Darcs) => darcs::describe(opts).await,
+        Some((VcsKind::Git, ref path)) => git::commit(opts, path).await,
+        Some((VcsKind::Hg, ref path)) => hg::commit(opts, path).await,
+        Some((VcsKind::Pijul, ref path)) => pijul::commit(opts, path).await,
+        Some((VcsKind::Jj, ref path)) => jj::commit(opts, path).await,
+        Some((VcsKind::Darcs, ref path)) => darcs::commit(opts, path).await,
         None => None,
     }
 }
 
-pub async fn commit(
-    opts: &Options,
-    vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>,
-) -> Option<Chunk<SmolStr>> {
-    match vcs.await {
-        Some(VcsKind::Git) => git::commit(opts).await,
-        Some(VcsKind::Hg) => hg::commit(opts).await,
-        Some(VcsKind::Pijul) => pijul::commit(opts).await,
-        Some(VcsKind::Jj) => jj::commit(opts).await,
-        Some(VcsKind::Darcs) => darcs::commit(opts).await,
+pub async fn worktree(opts: &Options, vcs: Shared<FutureVsc>) -> Option<Chunk<SmolStr>> {
+    let vcs = vcs.await;
+    match vcs {
+        Some((VcsKind::Git, ref path)) => git::worktree(opts, path).await,
+        Some((VcsKind::Hg, ref path)) => hg::worktree(opts, path).await,
+        Some((VcsKind::Pijul, ref path)) => pijul::worktree(opts, path).await,
+        Some((VcsKind::Jj, ref path)) => jj::worktree(opts, path).await,
+        Some((VcsKind::Darcs, ref path)) => darcs::worktree(opts, path).await,
         None => None,
     }
 }
 
-pub async fn worktree(
-    opts: &Options,
-    vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>,
-) -> Option<Chunk<SmolStr>> {
+pub async fn stash(opts: &Options, vcs: Shared<FutureVsc>) -> Option<Chunk<SmolStr>> {
     match vcs.await {
-        Some(VcsKind::Git) => git::worktree(opts).await,
-        Some(VcsKind::Hg) => hg::worktree(opts).await,
-        Some(VcsKind::Pijul) => pijul::worktree(opts).await,
-        Some(VcsKind::Jj) => jj::worktree(opts).await,
-        Some(VcsKind::Darcs) => darcs::worktree(opts).await,
+        Some((VcsKind::Git, ref path)) => git::stash(opts, path).await,
+        Some((VcsKind::Hg, ref path)) => hg::stash(opts, path).await,
+        Some((VcsKind::Pijul, ref path)) => pijul::stash(opts, path).await,
+        Some((VcsKind::Jj, ref path)) => jj::stash(opts, path).await,
+        Some((VcsKind::Darcs, ref path)) => darcs::stash(opts, path).await,
         None => None,
     }
 }
 
-pub async fn stash(
-    opts: &Options,
-    vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>,
-) -> Option<Chunk<SmolStr>> {
+pub async fn branch(opts: &Options, vcs: Shared<FutureVsc>) -> Option<Chunk<SmolStr>> {
     match vcs.await {
-        Some(VcsKind::Git) => git::stash(opts).await,
-        Some(VcsKind::Hg) => hg::stash(opts).await,
-        Some(VcsKind::Pijul) => pijul::stash(opts).await,
-        Some(VcsKind::Jj) => jj::stash(opts).await,
-        Some(VcsKind::Darcs) => darcs::stash(opts).await,
+        Some((VcsKind::Git, ref path)) => git::branch(opts, path).await,
+        Some((VcsKind::Hg, ref path)) => hg::branch(opts, path).await,
+        Some((VcsKind::Pijul, ref path)) => pijul::branch(opts, path).await,
+        Some((VcsKind::Jj, ref path)) => jj::branch(opts, path).await,
+        Some((VcsKind::Darcs, ref path)) => darcs::branch(opts, path).await,
         None => None,
     }
 }
 
-pub async fn branch(
-    opts: &Options,
-    vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>,
-) -> Option<Chunk<SmolStr>> {
+pub async fn status(opts: &Options, vcs: Shared<FutureVsc>) -> Option<Chunk<SmolStr>> {
     match vcs.await {
-        Some(VcsKind::Git) => git::branch(opts).await,
-        Some(VcsKind::Hg) => hg::branch(opts).await,
-        Some(VcsKind::Pijul) => pijul::branch(opts).await,
-        Some(VcsKind::Jj) => jj::branch(opts).await,
-        Some(VcsKind::Darcs) => darcs::branch(opts).await,
+        Some((VcsKind::Git, ref path)) => git::status(opts, path).await,
+        Some((VcsKind::Hg, ref path)) => hg::status(opts, path).await,
+        Some((VcsKind::Pijul, ref path)) => pijul::status(opts, path).await,
+        Some((VcsKind::Jj, ref path)) => jj::status(opts, path).await,
+        Some((VcsKind::Darcs, ref path)) => darcs::status(opts, path).await,
         None => None,
     }
 }
 
-pub async fn status(
-    opts: &Options,
-    vcs: Shared<Pin<Box<dyn Future<Output = Option<VcsKind>> + Send>>>,
-) -> Option<Chunk<SmolStr>> {
-    match vcs.await {
-        Some(VcsKind::Git) => git::status(opts).await,
-        Some(VcsKind::Hg) => hg::status(opts).await,
-        Some(VcsKind::Pijul) => pijul::status(opts).await,
-        Some(VcsKind::Jj) => jj::status(opts).await,
-        Some(VcsKind::Darcs) => darcs::status(opts).await,
-        None => None,
-    }
-}
-
-pub async fn detect_vcs(start: PathBuf) -> Option<VcsKind> {
+pub async fn detect_vcs(start: PathBuf) -> Option<(VcsKind, PathBuf)> {
     let mut dir = start.canonicalize().ok()?;
     loop {
         if fs::metadata(dir.join(".jj")).await.is_ok() {
-            return Some(VcsKind::Jj);
+            return Some((VcsKind::Jj, dir));
         }
         if fs::metadata(dir.join(".git")).await.is_ok() {
-            return Some(VcsKind::Git);
+            return Some((VcsKind::Git, dir));
         }
         if fs::metadata(dir.join(".hg")).await.is_ok() {
-            return Some(VcsKind::Hg);
+            return Some((VcsKind::Hg, dir));
         }
         if fs::metadata(dir.join(".pijul")).await.is_ok() {
-            return Some(VcsKind::Pijul);
+            return Some((VcsKind::Pijul, dir));
         }
         if fs::metadata(dir.join("_darcs")).await.is_ok() {
-            return Some(VcsKind::Darcs);
+            return Some((VcsKind::Darcs, dir));
         }
 
         if !dir.pop() {
@@ -143,4 +115,30 @@ pub async fn detect_vcs(start: PathBuf) -> Option<VcsKind> {
     }
 
     None
+}
+pub fn merge_icons<T: AsRef<str>>(icons: Vec<T>) -> SmolStr {
+    let mut builder = SmolStrBuilder::new();
+    icons
+        .iter()
+        .map(AsRef::<str>::as_ref)
+        .filter(|i| !i.is_empty()) // directly filter out empty icons
+        .sorted()
+        .chunk_by(|icon| *icon) // group by str value using chunk_by
+        .into_iter()
+        .for_each(|(icon, group)| builder.push_str(&render_icon((icon, group.count()))));
+
+    builder.finish()
+}
+
+pub fn render_icon<T: AsRef<str>>((icon, n): (T, usize)) -> SmolStr {
+    let mut builder = SmolStrBuilder::new();
+    if n == 1 {
+        builder.push_str(icon.as_ref());
+    } else {
+        let mut buffer = itoa::Buffer::new();
+        let numb = buffer.format(n);
+        builder.push_str(icon.as_ref());
+        builder.push_str(&to_superscript(numb));
+    }
+    builder.finish()
 }
