@@ -1,5 +1,5 @@
 use crate::chunk::Chunk;
-use crate::providers::vcs::merge_icons;
+use crate::providers::vcs::{merge_icons, StatusIcon};
 use crate::style::to_superscript;
 use crate::{cmd::CMD, options::Options};
 use smol_str::{format_smolstr, SmolStr, StrExt, ToSmolStr};
@@ -15,70 +15,63 @@ macro_rules! git {
     };
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-struct StatusIcon(pub &'static str);
+struct Git;
 
-impl AsRef<str> for StatusIcon {
-    fn as_ref(&self) -> &str {
-        self.0
-    }
-}
-
-impl FromStr for StatusIcon {
+impl FromStr for StatusIcon<Git> {
     type Err = Infallible;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut chars = s.chars();
         match (chars.next(), chars.next()) {
             // Unmerged states (conflicts)
-            (Some('D'), Some('D')) => Ok(StatusIcon("✖")), // Both deleted
-            (Some('A'), Some('A')) => Ok(StatusIcon("⧉")), // Both added
-            (Some('U'), Some('U')) => Ok(StatusIcon("⚠")), // Both modified - warning
-            (Some('A'), Some('U')) => Ok(StatusIcon("⊕")), // Added by us
-            (Some('U'), Some('A')) => Ok(StatusIcon("⊞")), // Added by them
-            (Some('D'), Some('U')) => Ok(StatusIcon("⊖")), // Deleted by us
-            (Some('U'), Some('D')) => Ok(StatusIcon("⊟")), // Deleted by them
+            (Some('D'), Some('D')) => Ok(StatusIcon::new("✖")), // Both deleted
+            (Some('A'), Some('A')) => Ok(StatusIcon::new("⧉")), // Both added
+            (Some('U'), Some('U')) => Ok(StatusIcon::new("⚠")), // Both modified - warning
+            (Some('A'), Some('U')) => Ok(StatusIcon::new("⊕")), // Added by us
+            (Some('U'), Some('A')) => Ok(StatusIcon::new("⊞")), // Added by them
+            (Some('D'), Some('U')) => Ok(StatusIcon::new("⊖")), // Deleted by us
+            (Some('U'), Some('D')) => Ok(StatusIcon::new("⊟")), // Deleted by them
 
             // Index changes
-            (Some('M'), Some(' ')) => Ok(StatusIcon("●")), // Modified in index only
-            (Some('M'), Some('M')) => Ok(StatusIcon("◉")), // Modified in both
-            (Some('M'), Some('D')) => Ok(StatusIcon("◐")), // Modified in index, deleted in worktree
-            (Some('M'), Some('T')) => Ok(StatusIcon("◑")), // Modified in index, type changed in worktree
+            (Some('M'), Some(' ')) => Ok(StatusIcon::new("●")), // Modified in index only
+            (Some('M'), Some('M')) => Ok(StatusIcon::new("◉")), // Modified in both
+            (Some('M'), Some('D')) => Ok(StatusIcon::new("◐")), // Modified in index, deleted in worktree
+            (Some('M'), Some('T')) => Ok(StatusIcon::new("◑")), // Modified in index, type changed in worktree
 
-            (Some('A'), Some(' ')) => Ok(StatusIcon("✚")), // Added to index only
-            (Some('A'), Some('M')) => Ok(StatusIcon("✛")), // Added and modified
-            (Some('A'), Some('D')) => Ok(StatusIcon("⊕")), // Added then deleted in worktree
-            (Some('A'), Some('T')) => Ok(StatusIcon("⊛")), // Added, type changed in worktree
+            (Some('A'), Some(' ')) => Ok(StatusIcon::new("✚")), // Added to index only
+            (Some('A'), Some('M')) => Ok(StatusIcon::new("✛")), // Added and modified
+            (Some('A'), Some('D')) => Ok(StatusIcon::new("⊕")), // Added then deleted in worktree
+            (Some('A'), Some('T')) => Ok(StatusIcon::new("⊛")), // Added, type changed in worktree
 
-            (Some('D'), Some(' ')) => Ok(StatusIcon("−")), // Deleted from index
-            (Some('D'), Some('M')) => Ok(StatusIcon("∓")), // Deleted in index but modified in worktree (weird state)
+            (Some('D'), Some(' ')) => Ok(StatusIcon::new("−")), // Deleted from index
+            (Some('D'), Some('M')) => Ok(StatusIcon::new("∓")), // Deleted in index but modified in worktree (weird state)
 
-            (Some('R'), Some(' ')) => Ok(StatusIcon("→")), // Renamed in index
-            (Some('R'), Some('M')) => Ok(StatusIcon("⇢")), // Renamed and modified
-            (Some('R'), Some('D')) => Ok(StatusIcon("⇥")), // Renamed then deleted
-            (Some('R'), Some('T')) => Ok(StatusIcon("⤳")), // Renamed and type changed
+            (Some('R'), Some(' ')) => Ok(StatusIcon::new("→")), // Renamed in index
+            (Some('R'), Some('M')) => Ok(StatusIcon::new("⇢")), // Renamed and modified
+            (Some('R'), Some('D')) => Ok(StatusIcon::new("⇥")), // Renamed then deleted
+            (Some('R'), Some('T')) => Ok(StatusIcon::new("⤳")), // Renamed and type changed
 
-            (Some('C'), Some(' ')) => Ok(StatusIcon("⊂")), // Copied in index
-            (Some('C'), Some('M')) => Ok(StatusIcon("⊃")), // Copied and modified
-            (Some('C'), Some('D')) => Ok(StatusIcon("⊄")), // Copied then deleted
-            (Some('C'), Some('T')) => Ok(StatusIcon("⊅")), // Copied and type changed
+            (Some('C'), Some(' ')) => Ok(StatusIcon::new("⊂")), // Copied in index
+            (Some('C'), Some('M')) => Ok(StatusIcon::new("⊃")), // Copied and modified
+            (Some('C'), Some('D')) => Ok(StatusIcon::new("⊄")), // Copied then deleted
+            (Some('C'), Some('T')) => Ok(StatusIcon::new("⊅")), // Copied and type changed
 
-            (Some('T'), Some(' ')) => Ok(StatusIcon("◈")), // Type changed in index
-            (Some('T'), Some('M')) => Ok(StatusIcon("◊")), // Type changed and modified
-            (Some('T'), Some('D')) => Ok(StatusIcon("⬧")), // Type changed then deleted
-            (Some('T'), Some('T')) => Ok(StatusIcon("⬢")), // Type changed in both
+            (Some('T'), Some(' ')) => Ok(StatusIcon::new("◈")), // Type changed in index
+            (Some('T'), Some('M')) => Ok(StatusIcon::new("◊")), // Type changed and modified
+            (Some('T'), Some('D')) => Ok(StatusIcon::new("⬧")), // Type changed then deleted
+            (Some('T'), Some('T')) => Ok(StatusIcon::new("⬢")), // Type changed in both
 
-            (Some(' '), Some('M')) => Ok(StatusIcon("○")), // Modified in worktree only
-            (Some(' '), Some('D')) => Ok(StatusIcon("")), // Deleted in worktree only
-            (Some(' '), Some('T')) => Ok(StatusIcon("◇")), // Type changed in worktree only
-            (Some(' '), Some('R')) => Ok(StatusIcon("↻")), // Renamed in worktree
-            (Some(' '), Some('C')) => Ok(StatusIcon("⊆")), // Copied in worktree
-            (Some(' '), Some('A')) => Ok(StatusIcon("⊹")), // Unchanged in index, added in worktree
+            (Some(' '), Some('M')) => Ok(StatusIcon::new("○")), // Modified in worktree only
+            (Some(' '), Some('D')) => Ok(StatusIcon::new("")), // Deleted in worktree only
+            (Some(' '), Some('T')) => Ok(StatusIcon::new("◇")), // Type changed in worktree only
+            (Some(' '), Some('R')) => Ok(StatusIcon::new("↻")), // Renamed in worktree
+            (Some(' '), Some('C')) => Ok(StatusIcon::new("⊆")), // Copied in worktree
+            (Some(' '), Some('A')) => Ok(StatusIcon::new("⊹")), // Unchanged in index, added in worktree
 
-            (Some('?'), Some('?')) => Ok(StatusIcon("⁇")), // Untracked
-            (Some('!'), Some('!')) => Ok(StatusIcon("")),  // Ignored
+            (Some('?'), Some('?')) => Ok(StatusIcon::new("⁇")), // Untracked
+            (Some('!'), Some('!')) => Ok(StatusIcon::new("")),  // Ignored
 
             // Default fallback
-            _ => Ok(StatusIcon("")), // Unknown state
+            _ => Ok(StatusIcon::new("")), // Unknown state
         }
     }
 }
@@ -172,7 +165,7 @@ pub async fn status(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
         .map(|s| {
             Chunk::info(merge_icons(
                 s.lines()
-                    .map(|l| l.parse::<StatusIcon>().unwrap())
+                    .map(|l| l.parse::<StatusIcon<Git>>().unwrap())
                     .collect::<Vec<_>>(),
             ))
         })

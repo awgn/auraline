@@ -1,11 +1,11 @@
 use crate::cmd::CMD;
-use crate::providers::vcs::merge_icons;
+use crate::providers::vcs::{merge_icons, StatusIcon};
 use crate::{chunk::Chunk, options::Options};
 use smol_str::{format_smolstr, SmolStr, SmolStrBuilder, ToSmolStr};
-use tokio::io::AsyncReadExt;
 use std::path::Path;
 use std::str::FromStr;
 use tokio::fs;
+use tokio::io::AsyncReadExt;
 
 macro_rules! hg {
     ( $( $x:expr ),* ) => {
@@ -13,28 +13,21 @@ macro_rules! hg {
     };
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-struct StatusIcon(pub &'static str);
+struct Hg;
 
-impl AsRef<str> for StatusIcon {
-    fn as_ref(&self) -> &str {
-        self.0
-    }
-}
-
-impl FromStr for StatusIcon {
+impl FromStr for StatusIcon<Hg> {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut chars = s.chars();
         match chars.next() {
-            Some('A') => Ok(StatusIcon("✚")), // added
-            Some('M') => Ok(StatusIcon("●")), // modified
-            Some('R') => Ok(StatusIcon("✖")), // removed
-            Some('!') => Ok(StatusIcon("!")), // missing
-            Some('?') => Ok(StatusIcon("?")), // not tracked
-            Some('C') => Ok(StatusIcon("")),  // clean
-            Some('I') => Ok(StatusIcon("")),  // Ignored
-            _ => Ok(StatusIcon("")),          // Unknown state
+            Some('A') => Ok(StatusIcon::new("✚")), // added
+            Some('M') => Ok(StatusIcon::new("●")), // modified
+            Some('R') => Ok(StatusIcon::new("✖")), // removed
+            Some('!') => Ok(StatusIcon::new("!")), // missing
+            Some('?') => Ok(StatusIcon::new("?")), // not tracked
+            Some('C') => Ok(StatusIcon::new("")),  // clean
+            Some('I') => Ok(StatusIcon::new("")),  // Ignored
+            _ => Ok(StatusIcon::new("")),          // Unknown state
         }
     }
 }
@@ -49,11 +42,11 @@ pub async fn branch(_: &Options, base: &Path) -> Option<Chunk<SmolStr>> {
 }
 
 pub async fn status(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    hg!("status").await.filter(|s| !s.is_empty()).map(|status| {
+    hg!("status").await.map(|status| {
         Chunk::info(merge_icons(
             status
                 .lines()
-                .map(|line| line.parse::<StatusIcon>().unwrap())
+                .map(|line| line.parse::<StatusIcon<Hg>>().unwrap())
                 .collect::<Vec<_>>(),
         ))
     })

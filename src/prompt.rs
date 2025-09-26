@@ -15,9 +15,9 @@ use crate::providers::exit_code::show as exit_code_show;
 
 use crate::chunk::Chunk;
 use crate::chunk::Unit;
+use crate::providers::huge_pages::show as huge_pages_show;
 use crate::providers::manifest::show as manifest_show;
 use crate::providers::memory::show as memory_show;
-use crate::providers::huge_pages::show as huge_pages_show;
 use crate::providers::netif::show as netif_show;
 use crate::providers::netns::namespace as net_namespace;
 use crate::providers::os::show as os_show;

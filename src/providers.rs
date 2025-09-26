@@ -1,8 +1,8 @@
 pub mod duration;
 pub mod exit_code;
+pub mod huge_pages;
 pub mod manifest;
 pub mod memory;
-pub mod huge_pages;
 pub mod netif;
 pub mod netns;
 pub mod os;

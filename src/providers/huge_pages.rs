@@ -13,12 +13,11 @@ pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
                     .iter()
                     .map(|page| format_smolstr!("{}x{}", page.count, format_kb(page.size_kb)))
                     .collect::<Vec<_>>()
-                    .join(",")
+                    .join(","),
             );
         }
         Some(Chunk::new("󰽿", builder.finish()))
     } else {
-
         None
     }
 }

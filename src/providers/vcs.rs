@@ -21,6 +21,27 @@ pub enum VcsKind {
     Darcs,
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+struct StatusIcon<T> {
+    pub value: &'static str,
+    pub marker: std::marker::PhantomData<T>,
+}
+
+impl<T> StatusIcon<T> {
+    pub const fn new(value: &'static str) -> Self {
+        Self {
+            value,
+            marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<T> AsRef<str> for StatusIcon<T> {
+    fn as_ref(&self) -> &str {
+        self.value
+    }
+}
+
 type FutureVsc = Pin<Box<dyn Future<Output = Option<(VcsKind, PathBuf)>> + Send>>;
 
 pub async fn divergence(opts: &Options, vcs: Shared<FutureVsc>) -> Option<Chunk<SmolStr>> {
