@@ -1,5 +1,5 @@
 use crate::chunk::Chunk;
-use crate::providers::vcs::{merge_icons, StatusIcon};
+use crate::providers::vcs::{merge_icons, StatusIcon, VcsTrait};
 use crate::style::to_superscript;
 use crate::{cmd::CMD, options::Options};
 use smol_str::{format_smolstr, SmolStr, StrExt, ToSmolStr};
@@ -15,7 +15,94 @@ macro_rules! git {
     };
 }
 
-struct Git;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Git;
+
+impl VcsTrait for Git {
+    async fn branch(&self, opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        let icon = git_branch_icon(opts).await;
+        let info = git_branch_name(opts).await;
+        match (icon, info) {
+            (None, None) => None,
+            (Some(icon), None) => Some(Chunk::icon(icon)),
+            (None, Some(info)) => Some(Chunk::info(info)),
+            (Some(icon), Some(info)) => Some(Chunk::new(icon, info)),
+        }
+    }
+
+    async fn commit(&self, opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        let (name_rev, branch_name, descr) = join!(
+            git_name_rev(opts),
+            git_branch_name(opts),
+            git_describe_cmd(opts)
+        );
+
+        match (branch_name, descr, name_rev) {
+            (_, None, None) => None,
+            (None, None, Some(nr)) => Some(Chunk::info(nr)),
+            (Some(b), None, Some(nr)) if git_bidirectional_inclusion(&b, &nr) => None,
+            (Some(_), None, Some(nr)) => Some(Chunk::info(nr)),
+            (_, Some(c), _) => Some(Chunk::info(c)),
+        }
+    }
+
+    async fn status(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        git!("status", "--porcelain")
+            .await
+            .filter(|s| !s.is_empty())
+            .map(|s| {
+                Chunk::info(merge_icons(
+                    s.lines()
+                        .map(|l| l.parse::<StatusIcon<Git>>().unwrap())
+                        .collect::<Vec<_>>(),
+                ))
+            })
+    }
+
+    async fn worktree(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        let path = env::current_dir().ok()?;
+        let output = git!("worktree", "list").await?;
+        output.lines().skip(1).find_map(|line| {
+            let mut parts = line.split_whitespace();
+            let worktree_path = parts.next()?;
+            if path.starts_with(worktree_path) {
+                parts.next()?; // skip the branch
+                let name = parts.collect::<Vec<_>>().join(" ");
+                Some(Chunk::new("⌂", name.into()))
+            } else {
+                None
+            }
+        })
+    }
+
+    async fn stash(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        git!("stash", "list")
+            .await
+            .filter(|s| !s.is_empty())
+            .map(|s| {
+                let mut buffer = itoa::Buffer::new();
+                let n = buffer.format(s.lines().count());
+                Chunk::info(format_smolstr!("≡{}", to_superscript(n)))
+            })
+    }
+
+    async fn divergence(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        let (ahead, behind) = join!(
+            git!("rev-list", "--count", "HEAD@{upstream}..HEAD"),
+            git!("rev-list", "--count", "HEAD..HEAD@{upstream}")
+        );
+
+        let ahead = ahead?;
+        let behind = behind?;
+
+        match (ahead.as_str(), behind.as_str()) {
+            ("0" | "", "0" | "") => None,
+            ("0" | "", behind) => Some(Chunk::info(format_smolstr!("↓{}", behind))),
+            (ahead, "0" | "") => Some(Chunk::info(format_smolstr!("↑{}", ahead))),
+            (ahead, behind) => Some(Chunk::info(format_smolstr!("↑{}↓{}", ahead, behind))),
+        }
+    }
+}
 
 impl FromStr for StatusIcon<Git> {
     type Err = Infallible;
@@ -92,17 +179,6 @@ async fn git_describe_cmd(_opts: &Options) -> Option<SmolStr> {
         })
 }
 
-pub async fn branch(opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-    let icon = git_branch_icon(opts).await;
-    let info = git_branch_name(opts).await;
-    match (icon, info) {
-        (None, None) => None,
-        (Some(icon), None) => Some(Chunk::icon(icon)),
-        (None, Some(info)) => Some(Chunk::info(info)),
-        (Some(icon), Some(info)) => Some(Chunk::new(icon, info)),
-    }
-}
-
 async fn git_rev_parse(origin: bool) -> Option<SmolStr> {
     git!(
         "rev-parse",
@@ -128,26 +204,11 @@ async fn git_name_rev(_opts: &Options) -> Option<SmolStr> {
 }
 
 #[inline]
-fn bidirectional_inclusion(a: &SmolStr, b: &SmolStr) -> bool {
+fn git_bidirectional_inclusion(a: &SmolStr, b: &SmolStr) -> bool {
     a.contains(b.as_str()) || b.contains(a.as_str())
 }
 
-pub async fn commit(opts: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    let (name_rev, branch_name, descr) = join!(
-        git_name_rev(opts),
-        git_branch_name(opts),
-        git_describe_cmd(opts)
-    );
-
-    match (branch_name, descr, name_rev) {
-        (_, None, None) => None,
-        (None, None, Some(nr)) => Some(Chunk::info(nr)),
-        (Some(b), None, Some(nr)) if bidirectional_inclusion(&b, &nr) => None,
-        (Some(_), None, Some(nr)) => Some(Chunk::info(nr)),
-        (_, Some(c), _) => Some(Chunk::info(c)),
-    }
-}
-
+#[inline]
 async fn git_branch_icon(_: &Options) -> Option<&'static str> {
     let (local, origin) = join!(git_rev_parse(false), git_rev_parse(true));
     match local.as_deref() {
@@ -158,63 +219,7 @@ async fn git_branch_icon(_: &Options) -> Option<&'static str> {
     }
 }
 
-pub async fn status(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    git!("status", "--porcelain")
-        .await
-        .filter(|s| !s.is_empty())
-        .map(|s| {
-            Chunk::info(merge_icons(
-                s.lines()
-                    .map(|l| l.parse::<StatusIcon<Git>>().unwrap())
-                    .collect::<Vec<_>>(),
-            ))
-        })
-}
-
-pub async fn worktree(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    let path = env::current_dir().ok()?;
-    let output = git!("worktree", "list").await?;
-    output.lines().skip(1).find_map(|line| {
-        let mut parts = line.split_whitespace();
-        let worktree_path = parts.next()?;
-        if path.starts_with(worktree_path) {
-            parts.next()?; // skip the branch
-            let name = parts.collect::<Vec<_>>().join(" ");
-            Some(Chunk::new("⌂", name.into()))
-        } else {
-            None
-        }
-    })
-}
-
-pub async fn stash(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    git!("stash", "list")
-        .await
-        .filter(|s| !s.is_empty())
-        .map(|s| {
-            let mut buffer = itoa::Buffer::new();
-            let n = buffer.format(s.lines().count());
-            Chunk::info(format_smolstr!("≡{}", to_superscript(n)))
-        })
-}
-
-pub async fn divergence(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    let (ahead, behind) = join!(
-        git!("rev-list", "--count", "HEAD@{upstream}..HEAD"),
-        git!("rev-list", "--count", "HEAD..HEAD@{upstream}")
-    );
-
-    let ahead = ahead?;
-    let behind = behind?;
-
-    match (ahead.as_str(), behind.as_str()) {
-        ("0" | "", "0" | "") => None,
-        ("0" | "", behind) => Some(Chunk::info(format_smolstr!("↓{}", behind))),
-        (ahead, "0" | "") => Some(Chunk::info(format_smolstr!("↑{}", ahead))),
-        (ahead, behind) => Some(Chunk::info(format_smolstr!("↑{}↓{}", ahead, behind))),
-    }
-}
-
+#[inline]
 async fn git_branch_name(_: &Options) -> Option<SmolStr> {
     git!("branch", "--show")
         .await

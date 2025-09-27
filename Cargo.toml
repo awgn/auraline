@@ -29,6 +29,7 @@ smol_str = "0.3.2"
 libc = "0.2.175"
 sysinfo = "0.37.0"
 scopeguard = "1.2.0"
+enum_dispatch = "0.3.13"
 
 [profile.release]
 codegen-units    = 1

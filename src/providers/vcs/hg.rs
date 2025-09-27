@@ -1,5 +1,5 @@
 use crate::cmd::CMD;
-use crate::providers::vcs::{merge_icons, StatusIcon};
+use crate::providers::vcs::{merge_icons, StatusIcon, VcsTrait};
 use crate::{chunk::Chunk, options::Options};
 use smol_str::{format_smolstr, SmolStr, SmolStrBuilder, ToSmolStr};
 use std::path::Path;
@@ -13,7 +13,61 @@ macro_rules! hg {
     };
 }
 
-struct Hg;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Hg;
+
+impl VcsTrait for Hg {
+    async fn branch(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
+        // hg!("branch")
+        //     .await
+        //     .map(|s| Chunk::new("hg ⎇", s.trim().to_smolstr()))
+        let path = path.join(".hg").join("branch");
+        let branch = fs::read_to_string(path).await.ok()?;
+        Some(Chunk::new("hg ⎇", branch.trim().to_smolstr()))
+    }
+
+    async fn commit(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
+        // hg!("id").await.map(|s| Chunk::info(s.trim().to_smolstr()))
+        let hash = get_hg_commit_hash(path).await?;
+
+        let bookmark_path = path.join(".hg").join("bookmarks.current");
+        let bookmark = fs::read_to_string(bookmark_path).await.ok();
+        match bookmark {
+            Some(bm) if !bm.trim().is_empty() => {
+                let combined = format_smolstr!("{} ({})", hash.trim(), bm.trim());
+                Some(Chunk::info(combined))
+            }
+            _ => Some(Chunk::info(hash)),
+        }
+    }
+
+    async fn status(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        hg!("status").await.map(|status| {
+            Chunk::info(merge_icons(
+                status
+                    .lines()
+                    .map(|line| line.parse::<StatusIcon<Hg>>().unwrap())
+                    .collect::<Vec<_>>(),
+            ))
+        })
+    }
+
+    async fn worktree(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
+        let path = path.join(".hg").join("sharedpath");
+        let sharedpath = fs::read_to_string(&path).await.ok()?;
+        sharedpath
+            .rfind('/')
+            .map(|pos| Chunk::new("⌂", sharedpath[..pos].into()))
+    }
+
+    async fn stash(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        None
+    }
+
+    async fn divergence(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        None
+    }
+}
 
 impl FromStr for StatusIcon<Hg> {
     type Err = ();
@@ -30,59 +84,6 @@ impl FromStr for StatusIcon<Hg> {
             _ => Ok(StatusIcon::new("")),          // Unknown state
         }
     }
-}
-
-pub async fn branch(_: &Options, base: &Path) -> Option<Chunk<SmolStr>> {
-    // hg!("branch")
-    //     .await
-    //     .map(|s| Chunk::new("hg ⎇", s.trim().to_smolstr()))
-    let path = base.join(".hg").join("branch");
-    let branch = fs::read_to_string(path).await.ok()?;
-    Some(Chunk::new("hg ⎇", branch.trim().to_smolstr()))
-}
-
-pub async fn status(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    hg!("status").await.map(|status| {
-        Chunk::info(merge_icons(
-            status
-                .lines()
-                .map(|line| line.parse::<StatusIcon<Hg>>().unwrap())
-                .collect::<Vec<_>>(),
-        ))
-    })
-}
-
-pub async fn stash(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    None
-}
-
-pub async fn worktree(_: &Options, base: &Path) -> Option<Chunk<SmolStr>> {
-    let path = base.join(".hg").join("sharedpath");
-    let sharedpath = fs::read_to_string(&path).await.ok()?;
-    sharedpath
-        .rfind('/')
-        .map(|pos| Chunk::new("⌂", sharedpath[..pos].into()))
-}
-
-pub async fn commit(_: &Options, base: &Path) -> Option<Chunk<SmolStr>> {
-    // hg!("id").await.map(|s| Chunk::info(s.trim().to_smolstr()))
-    let hash = get_hg_commit_hash(base).await?;
-
-    let bookmark_path = base.join(".hg").join("bookmarks.current");
-    let bookmark = fs::read_to_string(bookmark_path).await.ok();
-    match bookmark {
-        Some(bm) if !bm.trim().is_empty() => {
-            let combined = format_smolstr!("{} ({})", hash.trim(), bm.trim());
-            Some(Chunk::info(combined))
-        }
-        _ => Some(Chunk::info(hash)),
-    }
-
-    //Some(Chunk::info(hash))
-}
-
-pub async fn divergence(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    None
 }
 
 async fn get_hg_commit_hash(base: &Path) -> Option<SmolStr> {

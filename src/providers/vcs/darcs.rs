@@ -1,28 +1,33 @@
 use std::path::Path;
 
-use crate::{chunk::Chunk, options::Options};
+use crate::{chunk::Chunk, options::Options, providers::vcs::VcsTrait};
 use smol_str::SmolStr;
 
-pub async fn divergence(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    None
-}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Darcs;
 
-pub async fn commit(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    None
-}
+impl VcsTrait for Darcs {
+    async fn branch(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        todo!()
+    }
 
-pub async fn worktree(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    None
-}
+    async fn commit(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        todo!()
+    }
 
-pub async fn stash(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    None
-}
+    async fn status(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        todo!()
+    }
 
-pub async fn branch(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    None
-}
+    async fn worktree(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        todo!()
+    }
 
-pub async fn status(_: &Options, _base: &Path) -> Option<Chunk<SmolStr>> {
-    None
+    async fn stash(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        todo!()
+    }
+
+    async fn divergence(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        todo!()
+    }
 }

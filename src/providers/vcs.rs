@@ -4,20 +4,47 @@ pub mod hg;
 pub mod jj;
 pub mod pijul;
 
-use std::{future::Future, path::PathBuf, pin::Pin};
+use std::path::{Path, PathBuf};
 
 use crate::{chunk::Chunk, options::Options, style::to_superscript};
-use futures::future::Shared;
+
+use crate::providers::vcs::darcs::Darcs;
+use crate::providers::vcs::git::Git;
+use crate::providers::vcs::hg::Hg;
+use crate::providers::vcs::jj::Jj;
+use crate::providers::vcs::pijul::Pijul;
+
+use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
 use smol_str::{SmolStr, SmolStrBuilder};
 use tokio::fs;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VcsKind {
+//#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+//pub enum Vcs {
+//    Git,
+//    Hg,
+//    Pijul,
+//    Jj,
+//    Darcs,
+//}
+
+#[enum_dispatch]
+pub trait VcsTrait {
+    async fn branch(&self, opts: &Options, path: &Path) -> Option<Chunk<SmolStr>>;
+    async fn commit(&self, opts: &Options, path: &Path) -> Option<Chunk<SmolStr>>;
+    async fn status(&self, opts: &Options, path: &Path) -> Option<Chunk<SmolStr>>;
+    async fn worktree(&self, opts: &Options, path: &Path) -> Option<Chunk<SmolStr>>;
+    async fn stash(&self, opts: &Options, path: &Path) -> Option<Chunk<SmolStr>>;
+    async fn divergence(&self, opts: &Options, path: &Path) -> Option<Chunk<SmolStr>>;
+}
+
+#[enum_dispatch(VcsTrait)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Vcs {
     Git,
     Hg,
-    Pijul,
     Jj,
+    Pijul,
     Darcs,
 }
 
@@ -42,92 +69,23 @@ impl<T> AsRef<str> for StatusIcon<T> {
     }
 }
 
-type FutureVsc = Pin<Box<dyn Future<Output = Option<(VcsKind, PathBuf)>> + Send>>;
-
-pub async fn divergence(opts: &Options, vcs: Shared<FutureVsc>) -> Option<Chunk<SmolStr>> {
-    match vcs.await {
-        Some((VcsKind::Git, ref path)) => git::divergence(opts, path).await,
-        Some((VcsKind::Hg, ref path)) => hg::divergence(opts, path).await,
-        Some((VcsKind::Pijul, ref path)) => pijul::divergence(opts, path).await,
-        Some((VcsKind::Jj, ref path)) => jj::divergence(opts, path).await,
-        Some((VcsKind::Darcs, ref path)) => darcs::divergence(opts, path).await,
-        None => None,
-    }
-}
-
-pub async fn commit(opts: &Options, vcs: Shared<FutureVsc>) -> Option<Chunk<SmolStr>> {
-    match vcs.await {
-        Some((VcsKind::Git, ref path)) => git::commit(opts, path).await,
-        Some((VcsKind::Hg, ref path)) => hg::commit(opts, path).await,
-        Some((VcsKind::Pijul, ref path)) => pijul::commit(opts, path).await,
-        Some((VcsKind::Jj, ref path)) => jj::commit(opts, path).await,
-        Some((VcsKind::Darcs, ref path)) => darcs::commit(opts, path).await,
-        None => None,
-    }
-}
-
-pub async fn worktree(opts: &Options, vcs: Shared<FutureVsc>) -> Option<Chunk<SmolStr>> {
-    let vcs = vcs.await;
-    match vcs {
-        Some((VcsKind::Git, ref path)) => git::worktree(opts, path).await,
-        Some((VcsKind::Hg, ref path)) => hg::worktree(opts, path).await,
-        Some((VcsKind::Pijul, ref path)) => pijul::worktree(opts, path).await,
-        Some((VcsKind::Jj, ref path)) => jj::worktree(opts, path).await,
-        Some((VcsKind::Darcs, ref path)) => darcs::worktree(opts, path).await,
-        None => None,
-    }
-}
-
-pub async fn stash(opts: &Options, vcs: Shared<FutureVsc>) -> Option<Chunk<SmolStr>> {
-    match vcs.await {
-        Some((VcsKind::Git, ref path)) => git::stash(opts, path).await,
-        Some((VcsKind::Hg, ref path)) => hg::stash(opts, path).await,
-        Some((VcsKind::Pijul, ref path)) => pijul::stash(opts, path).await,
-        Some((VcsKind::Jj, ref path)) => jj::stash(opts, path).await,
-        Some((VcsKind::Darcs, ref path)) => darcs::stash(opts, path).await,
-        None => None,
-    }
-}
-
-pub async fn branch(opts: &Options, vcs: Shared<FutureVsc>) -> Option<Chunk<SmolStr>> {
-    match vcs.await {
-        Some((VcsKind::Git, ref path)) => git::branch(opts, path).await,
-        Some((VcsKind::Hg, ref path)) => hg::branch(opts, path).await,
-        Some((VcsKind::Pijul, ref path)) => pijul::branch(opts, path).await,
-        Some((VcsKind::Jj, ref path)) => jj::branch(opts, path).await,
-        Some((VcsKind::Darcs, ref path)) => darcs::branch(opts, path).await,
-        None => None,
-    }
-}
-
-pub async fn status(opts: &Options, vcs: Shared<FutureVsc>) -> Option<Chunk<SmolStr>> {
-    match vcs.await {
-        Some((VcsKind::Git, ref path)) => git::status(opts, path).await,
-        Some((VcsKind::Hg, ref path)) => hg::status(opts, path).await,
-        Some((VcsKind::Pijul, ref path)) => pijul::status(opts, path).await,
-        Some((VcsKind::Jj, ref path)) => jj::status(opts, path).await,
-        Some((VcsKind::Darcs, ref path)) => darcs::status(opts, path).await,
-        None => None,
-    }
-}
-
-pub async fn detect_vcs(start: PathBuf) -> Option<(VcsKind, PathBuf)> {
+pub async fn detect_vcs(start: PathBuf) -> Option<(Vcs, PathBuf)> {
     let mut dir = start.canonicalize().ok()?;
     loop {
         if fs::metadata(dir.join(".jj")).await.is_ok() {
-            return Some((VcsKind::Jj, dir));
+            return Some((Vcs::Jj(Jj), dir));
         }
         if fs::metadata(dir.join(".git")).await.is_ok() {
-            return Some((VcsKind::Git, dir));
+            return Some((Vcs::Git(Git), dir));
         }
         if fs::metadata(dir.join(".hg")).await.is_ok() {
-            return Some((VcsKind::Hg, dir));
+            return Some((Vcs::Hg(Hg), dir));
         }
         if fs::metadata(dir.join(".pijul")).await.is_ok() {
-            return Some((VcsKind::Pijul, dir));
+            return Some((Vcs::Pijul(Pijul), dir));
         }
         if fs::metadata(dir.join("_darcs")).await.is_ok() {
-            return Some((VcsKind::Darcs, dir));
+            return Some((Vcs::Darcs(Darcs), dir));
         }
 
         if !dir.pop() {
