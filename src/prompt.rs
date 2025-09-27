@@ -1,19 +1,27 @@
 use frunk::hlist;
-use frunk::poly_fn;
+use frunk::Func;
 use frunk::HCons;
 use frunk::HNil;
-use smol_str::SmolStr;
+
+use frunk::Poly;
 use std::env;
+use std::fmt::Display;
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinError;
 
+use crate::providers::basic::device_name;
+use crate::providers::basic::distro;
+use crate::providers::basic::full_pwd;
+use crate::providers::basic::hostname;
+use crate::providers::basic::pwd;
+use crate::providers::basic::realname;
+use crate::providers::basic::user;
 use crate::providers::duration::show as duration_show;
 use crate::providers::exit_code::show as exit_code_show;
 
 use crate::chunk::Chunk;
-use crate::chunk::Unit;
 use crate::providers::huge_pages::show as huge_pages_show;
 use crate::providers::manifest::show as manifest_show;
 use crate::providers::memory::show as memory_show;
@@ -21,7 +29,7 @@ use crate::providers::netif::show as netif_show;
 use crate::providers::netns::show as net_namespace;
 use crate::providers::os::show as os_show;
 use crate::providers::ssh::show as ssh_show;
-use crate::providers::vcs::{detect_vcs, Vcs, VcsTrait};
+use crate::providers::vcs::{infer_vcs, Vcs, VcsTrait};
 use crate::providers::virt::show as virt_show;
 
 use crate::style::build_color_style;
@@ -63,19 +71,25 @@ macro_rules! item_vcs {
     }};
 }
 
-type ResultUnit = Result<(&'static str, Duration, Option<Chunk<Unit>>), JoinError>;
-type ResultStatic = Result<(&'static str, Duration, Option<Chunk<&'static str>>), JoinError>;
-type ResultSmolStr = Result<(&'static str, Duration, Option<Chunk<SmolStr>>), JoinError>;
 
 pub async fn print_prompt(opts: Options) -> Result<(), JoinError> {
-    let vcs = detect_vcs(env::current_dir().unwrap()).await;
     let opts = Arc::new(opts);
+    let vcs = infer_vcs(env::current_dir().unwrap()).await;
 
-    let color = build_color_style(opts.theme.as_deref());
-    let bold = Style::new().bold();
-    let def = Style::default();
+    let (color, bold, def) = (
+        build_color_style(opts.theme.as_deref()),
+        Style::new().bold(),
+        Style::default(),
+    );
 
-    let styled_prompt = hlist![
+    let async_prompt = hlist![
+        item![user, opts, (color, bold)],
+        item![realname, opts, (color, bold)],
+        item![hostname, opts, (color, bold.dimmed())],
+        item![device_name, opts, (color, bold.dimmed())],
+        item![distro, opts, (color, bold.dimmed())],
+        item![pwd, opts, (color, bold)],
+        item![full_pwd, opts, (color, bold)],
         item![os_show, opts, (color, bold)],
         item![virt_show, opts, (bold, bold)],
         item![memory_show, opts, (bold, bold)],
@@ -99,56 +113,12 @@ pub async fn print_prompt(opts: Options) -> Result<(), JoinError> {
         item![exit_code_show, opts, (bold.red(), bold)],
     ];
 
-    let styled_parts = styled_prompt.hjoin().await;
+    let prompt = async_prompt.hjoin().await;
 
-    if opts.timing {
-        styled_parts.map(poly_fn!(
-            |chunk: ResultUnit| -> () {
-                let (f, dur, c) = chunk.expect("Task panicked");
-                let f = f.replace("auraline::providers::", "");
-                if let Some(chunk) = c {
-                    println!("{f:<40} -> {dur:>15?} : ({chunk})");
-                } else {
-                    println!("{f:<40} -> {dur:>15?} : (_)");
-                }
-            },
-            |chunk: ResultStatic| -> () {
-                let (f, dur, c) = chunk.expect("Task panicked");
-                let f = f.replace("auraline::providers::", "");
-                if let Some(chunk) = c {
-                    println!("{f:<40} -> {dur:>15?} : ({chunk})");
-                } else {
-                    println!("{f:<40} -> {dur:>15?} : (_)");
-                }
-            },
-            |chunk: ResultSmolStr| -> () {
-                let (f, dur, c) = chunk.expect("Task panicked");
-                let f = f.replace("auraline::providers::", "");
-                if let Some(chunk) = c {
-                    println!("{f:<40} -> {dur:>15?} : ({chunk})");
-                } else {
-                    println!("{f:<40} -> {dur:>15?} : (_)");
-                }
-            },
-        ));
+    if opts.timings {
+        prompt.map(Poly(TimingMapper));
     } else {
-        styled_parts.map(poly_fn!(
-            |chunk: ResultUnit| -> () {
-                if let (_, _, Some(c)) = chunk.expect("Task panicked") {
-                    print!("{c} ")
-                }
-            },
-            |chunk: ResultStatic| -> () {
-                if let (_, _, Some(c)) = chunk.expect("Task panicked") {
-                    print!("{c} ")
-                }
-            },
-            |chunk: ResultSmolStr| -> () {
-                if let (_, _, Some(s)) = chunk.expect("Task panicked") {
-                    print!("{s} ")
-                }
-            },
-        ));
+        prompt.map(Poly(PrintMapper));
     }
 
     Ok(())
@@ -182,6 +152,37 @@ where
     }
 }
 
+struct PrintMapper;
+impl<T> Func<Result<(&'static str, Duration, Option<Chunk<T>>), JoinError>> for PrintMapper
+where
+    T: Display,
+{
+    type Output = ();
+
+    fn call(input: Result<(&'static str, Duration, Option<Chunk<T>>), JoinError>) -> Self::Output {
+        if let (_, _, Some(c)) = input.expect("Task panicked") {
+            print!("{c} ")
+        }
+    }
+}
+
+struct TimingMapper;
+impl<T> Func<Result<(&'static str, Duration, Option<Chunk<T>>), JoinError>> for TimingMapper
+where
+    T: Display,
+{
+    type Output = ();
+
+    fn call(input: Result<(&'static str, Duration, Option<Chunk<T>>), JoinError>) -> Self::Output {
+        let (f, dur, c) = input.expect("Task panicked");
+        let f = f.replace("auraline::providers::", "");
+        if let Some(chunk) = c {
+            println!("{f:<40} -> {dur:>15?} : ({chunk})");
+        } else {
+            println!("{f:<40} -> {dur:>15?} : (_)");
+        }
+    }
+}
 #[inline]
 fn provider_name<T>(_: &T) -> &'static str {
     std::any::type_name::<T>()

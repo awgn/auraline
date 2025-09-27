@@ -60,7 +60,7 @@ impl<T> AsRef<str> for StatusIcon<T> {
     }
 }
 
-pub async fn detect_vcs(start: PathBuf) -> Option<(Vcs, PathBuf)> {
+pub async fn infer_vcs(start: PathBuf) -> Option<(Vcs, PathBuf)> {
     let mut dir = start.canonicalize().ok()?;
     loop {
         if fs::metadata(dir.join(".jj")).await.is_ok() {

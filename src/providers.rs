@@ -1,3 +1,4 @@
+pub mod basic;
 pub mod duration;
 pub mod exit_code;
 pub mod huge_pages;

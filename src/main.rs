@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 mod chunk;
 mod cmd;
 mod options;

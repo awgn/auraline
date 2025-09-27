@@ -15,8 +15,29 @@ pub struct Options {
     #[clap(long, help = "Specify the exit-code of the last command")]
     pub exit_code: Option<u8>,
 
-    #[clap(long, help = "Enable timing mode (dev)")]
-    pub timing: bool,
+    #[clap(short('H'), long, help = "Basic hostname info")]
+    pub hostname: bool,
+
+    #[clap(short, long, help = "Basic devicename info")]
+    pub device_name: bool,
+
+    #[clap(short, long, help = "Basic user info")]
+    pub user: bool,
+
+    #[clap(short, long, help = "Basic realname info")]
+    pub realname: bool,
+
+    #[clap(short('D'), long, help = "Basic distro info")]
+    pub distro: bool,
+
+    #[clap(short('w'), long, help = "Current working directory")]
+    pub pwd: bool,
+
+    #[clap(short('W'), long, help = "Current working directory")]
+    pub full_pwd: bool,
+
+    #[clap(long, help = "Enable timings mode (dev)")]
+    pub timings: bool,
 }
 
 impl Options {

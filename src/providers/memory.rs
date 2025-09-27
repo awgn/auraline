@@ -7,5 +7,8 @@ pub async fn show(opt: &Options) -> Option<Chunk<SmolStr>> {
         RefreshKind::nothing().with_memory(MemoryRefreshKind::everything()),
     );
     let mem_perc = info.used_memory() as f64 / info.total_memory() as f64 * 100.0;
-    Some(Chunk::new(opt.select_str("μ", ""), format_smolstr!("{:.1}%", mem_perc)))
+    Some(Chunk::new(
+        opt.select_str("μ", ""),
+        format_smolstr!("{:.1}%", mem_perc),
+    ))
 }
