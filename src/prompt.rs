@@ -71,7 +71,6 @@ macro_rules! item_vcs {
     }};
 }
 
-
 pub async fn print_prompt(opts: Options) -> Result<(), JoinError> {
     let opts = Arc::new(opts);
     let vcs = infer_vcs(env::current_dir().unwrap()).await;

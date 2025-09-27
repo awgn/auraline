@@ -42,6 +42,7 @@ impl VcsTrait for Hg {
     }
 
     async fn status(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        // TODO: although hg is quite slow, it is very difficult to implement `hg status` without resorting to the `hg` command...
         hg!("status").await.map(|status| {
             Chunk::info(merge_icons(
                 status
