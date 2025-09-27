@@ -1,7 +1,11 @@
-use crate::{cmd::CMD, providers::vcs::{merge_icons, StatusIcon}};
-use std::{path::Path, str::FromStr};
 use crate::{chunk::Chunk, options::Options, providers::vcs::VcsTrait};
+use crate::{
+    cmd::CMD,
+    providers::vcs::{merge_icons, StatusIcon},
+};
+use smallvec::SmallVec;
 use smol_str::{SmolStr, ToSmolStr};
+use std::{path::Path, str::FromStr};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Darcs;
@@ -35,7 +39,7 @@ impl VcsTrait for Darcs {
                 Chunk::info(merge_icons(
                     s.lines()
                         .map(|l| l.parse::<StatusIcon<Darcs>>().unwrap())
-                        .collect::<Vec<_>>(),
+                        .collect::<SmallVec<[_; 8]>>(),
                 ))
             })
     }

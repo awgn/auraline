@@ -1,4 +1,5 @@
 use owo_colors::Style;
+use smallvec::SmallVec;
 use smol_str::{SmolStr, SmolStrBuilder};
 
 pub fn build_color_style(theme: Option<&str>) -> Style {
@@ -36,11 +37,10 @@ pub fn build_color_style(theme: Option<&str>) -> Style {
 fn parse_true_color(input: &str) -> Option<(u8, u8, u8)> {
     input
         .split(',')
-        .map(|s| s.parse::<u8>())
-        .collect::<Result<Vec<_>, _>>()
+        .map(|s| s.trim().parse::<u8>())
+        .collect::<Result<SmallVec<[u8; 3]>, _>>()
         .ok()
-        .and_then(|v| v.try_into().ok())
-        .map(|r: [u8; 3]| (r[0], r[1], r[2]))
+        .and_then(|v| (v.len() == 3).then_some((v[0], v[1], v[2])))
 }
 
 pub fn to_superscript(s: &str) -> SmolStr {

@@ -31,6 +31,7 @@ sysinfo = "0.37.1"
 scopeguard = "1.2.0"
 enum_dispatch = "0.3.13"
 whoami = "1.6.1"
+smallvec = { version = "1.15.1", features = ["const_generics"] }
 
 [profile.release]
 codegen-units    = 1

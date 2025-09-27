@@ -2,6 +2,7 @@ use crate::chunk::Chunk;
 use crate::providers::vcs::{merge_icons, StatusIcon, VcsTrait};
 use crate::style::to_superscript;
 use crate::{cmd::CMD, options::Options};
+use smallvec::SmallVec;
 use smol_str::{format_smolstr, SmolStr, StrExt, ToSmolStr};
 use std::convert::Infallible;
 use std::env;
@@ -54,7 +55,7 @@ impl VcsTrait for Git {
                 Chunk::info(merge_icons(
                     s.lines()
                         .map(|l| l.parse::<StatusIcon<Git>>().unwrap())
-                        .collect::<Vec<_>>(),
+                        .collect::<SmallVec<[_; 8]>>(),
                 ))
             })
     }
@@ -67,7 +68,7 @@ impl VcsTrait for Git {
             let worktree_path = parts.next()?;
             if path.starts_with(worktree_path) {
                 parts.next()?; // skip the branch
-                let name = parts.collect::<Vec<_>>().join(" ");
+                let name = parts.collect::<SmallVec<[_; 8]>>().join(" ");
                 Some(Chunk::new("⌂", name.into()))
             } else {
                 None
@@ -167,7 +168,7 @@ async fn git_describe_cmd(_opts: &Options) -> Option<SmolStr> {
     git!("describe", "--abbrev=7", "--always", "--tag", "--long")
         .await
         .map(|s| {
-            let output = s.trim().split('-').collect::<Vec<_>>();
+            let output = s.trim().split('-').collect::<SmallVec<[_; 4]>>();
             match output[..] {
                 [] => "".to_smolstr(),
                 [tag] => tag.to_smolstr(),

@@ -1,5 +1,6 @@
 use crate::{chunk::Chunk, options::Options};
 use phf::phf_map;
+use smallvec::SmallVec;
 use smol_str::{format_smolstr, SmolStr, SmolStrBuilder};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
@@ -291,7 +292,7 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
 
     // retrive the list of files in the current directory
     let mut entries = tokio::fs::read_dir(".").await.ok()?;
-    let mut languages = Vec::new();
+    let mut languages = SmallVec::<[_; 8]>::new();
 
     while let Some(entry) = entries.next_entry().await.ok()? {
         // skip hidden files

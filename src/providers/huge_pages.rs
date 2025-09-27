@@ -1,4 +1,5 @@
 use crate::{chunk::Chunk, options::Options};
+use smallvec::SmallVec;
 use smol_str::{format_smolstr, SmolStr, SmolStrBuilder};
 use std::path::Path;
 use tokio::fs;
@@ -12,7 +13,7 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
                 &hp.pages
                     .iter()
                     .map(|page| format_smolstr!("{}x{}", page.count, format_kb(page.size_kb)))
-                    .collect::<Vec<_>>()
+                    .collect::<SmallVec<[_; 4]>>()
                     .join(","),
             );
         }
@@ -35,14 +36,14 @@ pub struct HugePageInfo {
 #[allow(dead_code)]
 pub struct HugePage {
     pub node: Option<u32>,
-    pub pages: Vec<HugePageInfo>,
+    pub pages: SmallVec<[HugePageInfo; 4]>,
 }
 
 /// Processes a specific hugepages directory (either system-wide or per-node)
 /// and collects information about allocated pages.
 async fn process_hugepage_dir(path: &Path, node: Option<u32>) -> Option<HugePage> {
     // This vector will store details for each page size (e.g., 2MB, 1GB).
-    let mut pages_info = Vec::new();
+    let mut pages_info = SmallVec::<[_; 4]>::new();
 
     // Read the directory content, continue only if successful.
     if let Ok(mut entries) = fs::read_dir(path).await {
@@ -94,11 +95,11 @@ async fn process_hugepage_dir(path: &Path, node: Option<u32>) -> Option<HugePage
 /// It checks for NUMA support and scans either per-node directories or the
 /// global hugepages directory.
 /// Returns `Some(Vec<HugePage>)` if configurations are found, otherwise `None`.
-pub async fn get_hugepages_status() -> Option<Vec<HugePage>> {
+pub async fn get_hugepages_status() -> Option<SmallVec<[HugePage; 4]>> {
     const NUMA_NODE_BASE_DIR: &str = "/sys/devices/system/node";
     const NO_NUMA_HUGE_DIR: &str = "/sys/kernel/mm/hugepages";
 
-    let mut hugepages: Vec<HugePage> = Vec::new();
+    let mut hugepages = SmallVec::<[_; 4]>::new();
 
     // Check if the system supports NUMA by checking for the base directory's existence.
     if Path::new(NUMA_NODE_BASE_DIR).exists() {

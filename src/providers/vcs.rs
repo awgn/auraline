@@ -16,6 +16,7 @@ use crate::providers::vcs::pijul::Pijul;
 
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
+use smallvec::SmallVec;
 use smol_str::{SmolStr, SmolStrBuilder};
 use tokio::fs;
 
@@ -86,7 +87,7 @@ pub async fn infer_vcs(start: PathBuf) -> Option<(Vcs, PathBuf)> {
 
     None
 }
-pub fn merge_icons<T: AsRef<str>>(icons: Vec<T>) -> SmolStr {
+pub fn merge_icons<T: AsRef<str>, const N: usize>(icons: SmallVec<[T; N]>) -> SmolStr {
     let mut builder = SmolStrBuilder::new();
     icons
         .iter()

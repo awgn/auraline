@@ -1,6 +1,7 @@
 use crate::cmd::CMD;
 use crate::providers::vcs::{merge_icons, StatusIcon, VcsTrait};
 use crate::{chunk::Chunk, options::Options};
+use smallvec::SmallVec;
 use smol_str::{format_smolstr, SmolStr};
 use std::path::Path;
 use std::str::FromStr;
@@ -15,9 +16,11 @@ macro_rules! jj {
 pub struct Jj;
 
 impl VcsTrait for Jj {
-    async fn branch(&self, _opts: &Options, _path:&Path) -> Option<Chunk<SmolStr>> {
-        jj!("log", "--color", "never", "--no-pager").await.and_then(|status| {
-            let branch = status
+    async fn branch(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        jj!("log", "--color", "never", "--no-pager")
+            .await
+            .and_then(|status| {
+                let branch = status
                     .lines()
                     .next()?
                     .split_whitespace()
@@ -25,20 +28,22 @@ impl VcsTrait for Jj {
                     .nth(1)?
                     .trim();
 
-            let s =  &branch[..branch.len() - 1];
-            Some(Chunk::new("jj ⎇", SmolStr::new(s)))
-        })
+                let s = &branch[..branch.len() - 1];
+                Some(Chunk::new("jj ⎇", SmolStr::new(s)))
+            })
     }
 
-    async fn commit(&self, _opts: &Options, _path:&Path) -> Option<Chunk<SmolStr>> {
+    async fn commit(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
         let status = jj!("status", "--color", "never", "--no-pager").await?;
         let working_copy = status
             .lines()
             .filter(|l| l.starts_with("Working copy") && l.contains("(@)"))
-            .collect::<Vec<_>>()
+            .collect::<SmallVec<[_; 8]>>()
             .into_iter()
             .next()?;
-        let tokens = working_copy.split_whitespace().collect::<Vec<_>>();
+        let tokens = working_copy
+            .split_whitespace()
+            .collect::<SmallVec<[_; 8]>>();
         if tokens.len() >= 6 {
             let change_id = tokens[4];
             let commit_id = tokens[5];
@@ -51,42 +56,43 @@ impl VcsTrait for Jj {
         }
     }
 
-    async fn status(&self, _opts: &Options, _path:&Path) -> Option<Chunk<SmolStr>> {
-        jj!("status", "--color", "never", "--no-pager").await.and_then(|status| {
-            let icons = merge_icons(
-                status
-                    .lines()
-                    .filter(|l| &l[1..2] == " ")
-                    .map(|line| line.parse::<StatusIcon<Jj>>().unwrap())
-                    .collect::<Vec<_>>(),
-            );
-            if icons.is_empty() {
-                return None;
-            }
-            Some(Chunk::info(icons))
-        })
+    async fn status(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        jj!("status", "--color", "never", "--no-pager")
+            .await
+            .and_then(|status| {
+                let icons = merge_icons(
+                    status
+                        .lines()
+                        .filter(|l| &l[1..2] == " ")
+                        .map(|line| line.parse::<StatusIcon<Jj>>().unwrap())
+                        .collect::<SmallVec<[_; 8]>>(),
+                );
+                if icons.is_empty() {
+                    return None;
+                }
+                Some(Chunk::info(icons))
+            })
     }
 
     async fn worktree(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        jj!("log", "--color", "never", "--no-pager").await.and_then(|status| {
-            let mut tokens = status
-                    .lines()
-                    .next()?
-                    .split_whitespace();
+        jj!("log", "--color", "never", "--no-pager")
+            .await
+            .and_then(|status| {
+                let mut tokens = status.lines().next()?.split_whitespace();
 
-            if tokens.clone().count() == 8 {
-                tokens.nth(5).map(|t| Chunk::new("¶", SmolStr::new(t)))
-            } else {
-                None
-            }
-        })
+                if tokens.clone().count() == 8 {
+                    tokens.nth(5).map(|t| Chunk::new("¶", SmolStr::new(t)))
+                } else {
+                    None
+                }
+            })
     }
 
-    async fn stash(&self, _opts: &Options, _path:&Path) -> Option<Chunk<SmolStr>> {
+    async fn stash(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
         None
     }
 
-    async fn divergence(&self, _opts: &Options, _path:&Path)-> Option<Chunk<SmolStr>> {
+    async fn divergence(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
         None
     }
 }

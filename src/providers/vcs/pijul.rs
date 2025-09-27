@@ -4,6 +4,7 @@ use std::str::FromStr;
 
 use crate::providers::vcs::{merge_icons, StatusIcon, VcsTrait};
 use crate::{chunk::Chunk, options::Options};
+use smallvec::SmallVec;
 use smol_str::{SmolStr, ToSmolStr};
 
 macro_rules! pijul {
@@ -39,7 +40,7 @@ impl VcsTrait for Pijul {
                 Chunk::info(merge_icons(
                     s.lines()
                         .map(|l| l.parse::<StatusIcon<Pijul>>().unwrap())
-                        .collect::<Vec<_>>(),
+                        .collect::<SmallVec<[_; 8]>>(),
                 ))
             })
     }

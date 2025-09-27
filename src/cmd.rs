@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+use smallvec::SmallVec;
 use smol_str::SmolStr;
 use std::{
     collections::HashMap,
@@ -16,7 +17,7 @@ lazy_static! {
 struct CmdOutput(Arc<tokio::sync::Mutex<Poll<Option<SmolStr>>>>);
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-struct CmdKey(&'static str, Vec<SmolStr>);
+struct CmdKey(&'static str, SmallVec<[SmolStr; 4]>);
 
 pub struct CmdCache {
     cache: Mutex<HashMap<CmdKey, CmdOutput>>,
@@ -38,7 +39,7 @@ impl CmdCache {
             cmd,
             args.into_iter()
                 .filter_map(|s| s.as_ref().to_str().map(Into::into))
-                .collect::<Vec<_>>(),
+                .collect::<SmallVec<[_; 4]>>(),
         )
     }
 
