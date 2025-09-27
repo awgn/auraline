@@ -9,7 +9,7 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
         let mut buffer = itoa::Buffer::new();
         let exit_code = buffer.format(exit_code);
         Some(Chunk::new(
-            "✗",
+            "✘",
             format_smolstr!("{}", to_superscript(exit_code)),
         ))
     }

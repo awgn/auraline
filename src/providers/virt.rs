@@ -53,7 +53,7 @@ static VIRTUALIZATION_MAP: phf::Map<&'static str, VirtualizationInfo> = phf_map!
     "container-other" => VirtualizationInfo { icon: "", color: "#A0A0A0", cterm_color: "247", name: "Unknown Container" },
 };
 
-pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
+pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     let virt = CMD
         .exec::<_, &'static str>("systemd-detect-virt", [])
         .await?;
@@ -62,11 +62,11 @@ pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
         ref v => VIRTUALIZATION_MAP.get(v).map(|info| info.icon),
     };
 
-    icon.map(|ico| {
-        Chunk::info(if ico.is_empty() {
-            virt.to_smolstr()
+    icon.map(|icon| {
+        Chunk::info(if icon.is_empty() {
+            virt
         } else {
-            ico.to_smolstr()
+            opts.select_str(&virt, icon).to_smolstr()
         })
     })
 }

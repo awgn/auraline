@@ -19,15 +19,6 @@ use itertools::Itertools;
 use smol_str::{SmolStr, SmolStrBuilder};
 use tokio::fs;
 
-//#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-//pub enum Vcs {
-//    Git,
-//    Hg,
-//    Pijul,
-//    Jj,
-//    Darcs,
-//}
-
 #[enum_dispatch]
 pub trait VcsTrait {
     async fn branch(&self, opts: &Options, path: &Path) -> Option<Chunk<SmolStr>>;

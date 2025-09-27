@@ -148,7 +148,7 @@ impl FromStr for StatusIcon<Git> {
             (Some('T'), Some('T')) => Ok(StatusIcon::new("⬢")), // Type changed in both
 
             (Some(' '), Some('M')) => Ok(StatusIcon::new("○")), // Modified in worktree only
-            (Some(' '), Some('D')) => Ok(StatusIcon::new("")), // Deleted in worktree only
+            (Some(' '), Some('D')) => Ok(StatusIcon::new("ｘ")), // Deleted in worktree only
             (Some(' '), Some('T')) => Ok(StatusIcon::new("◇")), // Type changed in worktree only
             (Some(' '), Some('R')) => Ok(StatusIcon::new("↻")), // Renamed in worktree
             (Some(' '), Some('C')) => Ok(StatusIcon::new("⊆")), // Copied in worktree

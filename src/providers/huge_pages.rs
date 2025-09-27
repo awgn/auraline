@@ -3,7 +3,7 @@ use smol_str::{format_smolstr, SmolStr, SmolStrBuilder};
 use std::path::Path;
 use tokio::fs;
 
-pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
+pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     let mut builder = SmolStrBuilder::new();
     let huge_pages = get_hugepages_status().await;
     if let Some(huge_pages) = huge_pages {
@@ -16,7 +16,7 @@ pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
                     .join(","),
             );
         }
-        Some(Chunk::new("󰽿", builder.finish()))
+        Some(Chunk::new(opts.select_str("⎘", "󰽿"), builder.finish()))
     } else {
         None
     }

@@ -27,15 +27,16 @@ pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
 
 fn format_duration(duration: Duration) -> Chunk<SmolStr> {
     let secs = duration.as_secs_f64();
+    let icon = "󰄉";
 
     if secs < 0.000001 {
-        return Chunk::new("󰄉", format_smolstr!("{}ns", duration.as_nanos()));
+        return Chunk::new(icon, format_smolstr!("{}ns", duration.as_nanos()));
     }
     if secs < 0.001 {
-        return Chunk::new("󰄉", format_smolstr!("{:.0}μs", secs * 1_000_000.0));
+        return Chunk::new(icon, format_smolstr!("{:.0}μs", secs * 1_000_000.0));
     }
     if secs < 1.0 {
-        return Chunk::new("󰄉", format_smolstr!("{:.0}ms", secs * 1_000.0));
+        return Chunk::new(icon, format_smolstr!("{:.0}ms", secs * 1_000.0));
     }
-    Chunk::new("󰄉", format_smolstr!("{:.2}s", secs))
+    Chunk::new(icon, format_smolstr!("{:.2}s", secs))
 }

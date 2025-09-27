@@ -18,3 +18,13 @@ pub struct Options {
     #[clap(long, help = "Enable timing mode (dev)")]
     pub timing: bool,
 }
+
+impl Options {
+    pub fn select_str<'a>(&self, normal: &'a str, nerd: &'a str) -> &'a str {
+        if self.nerd_font {
+            nerd
+        } else {
+            normal
+        }
+    }
+}
