@@ -3,7 +3,7 @@ use smallvec::SmallVec;
 use smol_str::{SmolStr, ToSmolStr};
 use std::collections::BTreeSet;
 
-use crate::{chunk::Chunk, options::Options};
+use crate::{chunk::Chunk, commands::Options};
 
 pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
     let ifaddrs = if_addrs::get_if_addrs().ok()?;

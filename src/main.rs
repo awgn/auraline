@@ -1,16 +1,20 @@
 #![recursion_limit = "256"]
 mod chunk;
 mod cmd;
-mod options;
+mod commands;
 mod prompt;
 mod providers;
 mod style;
 
-use crate::options::Options;
+use crate::commands::{Cli, Options};
 use clap::Parser;
 use prompt::print_prompt;
 
 #[tokio::main]
 async fn main() -> Result<(), tokio::task::JoinError> {
-    print_prompt(Options::parse()).await
+    let cli = Cli::parse();
+    match cli.command {
+        commands::Commands::Startup(options) => todo!(),
+        commands::Commands::Prompt(options) => print_prompt(options).await
+    }
 }

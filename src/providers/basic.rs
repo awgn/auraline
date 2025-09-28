@@ -1,4 +1,4 @@
-use crate::{chunk::Chunk, options::Options};
+use crate::{chunk::Chunk, commands::Options};
 
 #[inline]
 pub async fn hostname(opts: &Options) -> Option<Chunk<String>> {

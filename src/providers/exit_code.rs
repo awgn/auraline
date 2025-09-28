@@ -1,4 +1,4 @@
-use crate::{chunk::Chunk, options::Options, style::to_superscript};
+use crate::{chunk::Chunk, commands::Options, style::to_superscript};
 use smol_str::{format_smolstr, SmolStr};
 
 pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {

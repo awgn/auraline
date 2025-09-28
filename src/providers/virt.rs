@@ -1,4 +1,4 @@
-use crate::{chunk::Chunk, cmd::CMD, options::Options};
+use crate::{chunk::Chunk, cmd::CMD, commands::Options};
 use phf::phf_map;
 use smol_str::{SmolStr, ToSmolStr};
 

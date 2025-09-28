@@ -1,7 +1,23 @@
-use clap::Parser;
+use clap::{Args, Parser, Subcommand};
 
-#[derive(Parser, Default, Debug)]
+#[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    Startup(StartupOptions),
+    Prompt(Options),
+}
+
+#[derive(Args, Debug)]
+pub struct StartupOptions {
+}
+
+#[derive(Args, Debug)]
 pub struct Options {
     #[clap(short, long, help = "Specify the theme color")]
     pub theme: Option<String>,

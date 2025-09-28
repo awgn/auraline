@@ -1,4 +1,4 @@
-use crate::{chunk::Chunk, options::Options};
+use crate::{chunk::Chunk, commands::Options};
 use scopeguard::defer;
 use smol_str::{format_smolstr, SmolStr};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

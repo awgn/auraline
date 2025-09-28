@@ -1,4 +1,4 @@
-use crate::{chunk::Chunk, options::Options, providers::vcs::VcsTrait};
+use crate::{chunk::Chunk, commands::Options, providers::vcs::VcsTrait};
 use crate::{
     cmd::CMD,
     providers::vcs::{merge_icons, StatusIcon},

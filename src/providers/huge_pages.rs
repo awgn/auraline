@@ -1,4 +1,4 @@
-use crate::{chunk::Chunk, options::Options};
+use crate::{chunk::Chunk, commands::Options};
 use smallvec::SmallVec;
 use smol_str::{format_smolstr, SmolStr, SmolStrBuilder};
 use std::path::Path;

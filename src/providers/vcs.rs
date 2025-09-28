@@ -6,7 +6,7 @@ pub mod pijul;
 
 use std::path::{Path, PathBuf};
 
-use crate::{chunk::Chunk, options::Options, style::to_superscript};
+use crate::{chunk::Chunk, commands::Options, style::to_superscript};
 
 use crate::providers::vcs::darcs::Darcs;
 use crate::providers::vcs::git::Git;

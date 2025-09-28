@@ -1,4 +1,4 @@
-use crate::{chunk::Chunk, options::Options};
+use crate::{chunk::Chunk, commands::Options};
 use phf::phf_map;
 use smallvec::SmallVec;
 use smol_str::{format_smolstr, SmolStr, SmolStrBuilder};

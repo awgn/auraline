@@ -1,7 +1,7 @@
 use crate::chunk::Chunk;
 use crate::providers::vcs::{merge_icons, StatusIcon, VcsTrait};
 use crate::style::to_superscript;
-use crate::{cmd::CMD, options::Options};
+use crate::{cmd::CMD, commands::Options};
 use smallvec::SmallVec;
 use smol_str::{format_smolstr, SmolStr, StrExt, ToSmolStr};
 use std::convert::Infallible;

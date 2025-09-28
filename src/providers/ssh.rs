@@ -1,7 +1,7 @@
 use smallvec::SmallVec;
 use smol_str::{format_smolstr, SmolStr};
 
-use crate::{chunk::Chunk, options::Options};
+use crate::{chunk::Chunk, commands::Options};
 
 pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
     let ssh_connection = std::env::var("SSH_CONNECTION").ok()?;
