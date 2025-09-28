@@ -87,6 +87,7 @@ pub async fn infer_vcs(start: PathBuf) -> Option<(Vcs, PathBuf)> {
 
     None
 }
+
 pub fn merge_icons<T: AsRef<str>, const N: usize>(icons: SmallVec<[T; N]>) -> SmolStr {
     let mut builder = SmolStrBuilder::new();
     icons

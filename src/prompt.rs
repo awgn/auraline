@@ -72,6 +72,13 @@ macro_rules! item_vcs {
 }
 
 pub async fn print_prompt(opts: Options) -> Result<(), JoinError> {
+    let start =
+    if opts.timings {
+        Some(std::time::Instant::now())
+    } else {
+        None
+    };
+
     let opts = Arc::new(opts);
     let vcs = infer_vcs(env::current_dir().unwrap()).await;
 
@@ -114,8 +121,9 @@ pub async fn print_prompt(opts: Options) -> Result<(), JoinError> {
 
     let prompt = async_prompt.hjoin().await;
 
-    if opts.timings {
+    if let Some(start) = start {
         prompt.map(Poly(TimingMapper));
+        println!("{:<40} -> {:>15?}", "total time", start.elapsed());
     } else {
         prompt.map(Poly(PrintMapper));
     }
