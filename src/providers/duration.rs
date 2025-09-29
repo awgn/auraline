@@ -5,7 +5,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const AURALINE_CMD_START: &str = "auraline_cmd_start";
 
-pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
+pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
+    if !opts.duration {
+        return None;
+    }
     let end_nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .ok()?

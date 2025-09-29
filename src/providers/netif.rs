@@ -5,7 +5,11 @@ use std::collections::BTreeSet;
 
 use crate::{chunk::Chunk, commands::Options};
 
-pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
+pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
+    if !opts.netif {
+        return None;
+    }
+
     let ifaddrs = if_addrs::get_if_addrs().ok()?;
     let uniq: BTreeSet<SmolStr> = ifaddrs
         .iter()

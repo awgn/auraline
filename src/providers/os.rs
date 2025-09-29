@@ -91,9 +91,10 @@ pub async fn lsb_icon() -> Option<Chunk<Unit>> {
 }
 
 pub async fn show(opts: &Options) -> Option<Chunk<Unit>> {
-    if !opts.nerd_font {
+    if !opts.nerd_font || !opts.os {
         return None;
     }
+
     match std::env::consts::OS {
         "linux" => lsb_icon().await,
         "windows" => OS_MAP.get("windows").map(|info| Chunk::icon(info.icon)),

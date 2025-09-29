@@ -17,6 +17,27 @@ impl Display for Unit {
     }
 }
 
+pub struct Adjoin<T, V>(pub (T, V));
+impl<T, V> Display for Adjoin<T, V>
+where
+    T: Display,
+    V: Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.0 .0, self.0 .1)
+    }
+}
+
+impl<T, V> Default for Adjoin<T, V>
+where
+    T: Default,
+    V: Default,
+{
+    fn default() -> Self {
+        Self((T::default(), V::default()))
+    }
+}
+
 impl<T: Default> Chunk<T> {
     pub fn new(icon: &'static str, info: T) -> Self {
         Self {

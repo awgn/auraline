@@ -1,0 +1,86 @@
+use crate::commands::Options;
+use smol_str::SmolStr;
+
+const MINIMAL: Options = Options {
+    preset: Some(SmolStr::new_static("minimal")),
+    user: true,
+    realname: false,
+    hostname: true,
+    device_name: false,
+    distro: false,
+    pwd: true,
+    full_pwd: false,
+    os: false,
+    virt: false,
+    memory: false,
+    huge_pages: false,
+    ssh: false,
+    netif: false,
+    netns: false,
+    manifest: false,
+    vcs: false,
+    duration: false,
+    theme: None,
+    timings: false,
+    nerd_font: false,
+    exit_code: Some(0),
+};
+
+const LEAN: Options = Options {
+    preset: Some(SmolStr::new_static("lean")),
+    user: true,
+    realname: false,
+    hostname: true,
+    device_name: false,
+    distro: false,
+    pwd: true,
+    full_pwd: false,
+    os: false,
+    virt: false,
+    memory: true,
+    huge_pages: false,
+    ssh: true,
+    netif: true,
+    netns: false,
+    manifest: false,
+    vcs: false,
+    duration: true,
+    theme: None,
+    timings: false,
+    nerd_font: false,
+    exit_code: None,
+};
+
+const NERDY: Options = Options {
+    preset: Some(SmolStr::new_static("nerdy")),
+    user: true,
+    realname: false,
+    hostname: true,
+    device_name: false,
+    distro: false,
+    pwd: true,
+    full_pwd: false,
+    os: true,
+    virt: true,
+    memory: true,
+    huge_pages: true,
+    ssh: true,
+    netif: true,
+    netns: true,
+    manifest: true,
+    vcs: true,
+    duration: true,
+    theme: Some(SmolStr::new_static("blue")),
+    timings: false,
+    nerd_font: true,
+    exit_code: None,
+};
+
+pub fn get_preset(name: &str) -> Option<Options> {
+    match name {
+        "minimal" => Some(MINIMAL),
+        "lean" => Some(LEAN),
+        "nerdy" => Some(NERDY),
+        _ => None,
+    }
+}

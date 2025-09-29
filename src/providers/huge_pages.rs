@@ -5,6 +5,9 @@ use std::path::Path;
 use tokio::fs;
 
 pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
+    if !opts.huge_pages {
+        return None;
+    }
     let mut builder = SmolStrBuilder::new();
     let huge_pages = get_hugepages_status().await;
     if let Some(huge_pages) = huge_pages {

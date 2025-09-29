@@ -1,12 +1,15 @@
-use crate::{chunk::Chunk, commands::Options};
+use crate::{
+    chunk::{Adjoin, Chunk},
+    commands::Options,
+};
 
 #[inline]
-pub async fn hostname(opts: &Options) -> Option<Chunk<String>> {
+pub async fn hostname(opts: &Options) -> Option<Chunk<Adjoin<&'static str, String>>> {
     opts.hostname
         .then(|| {
             whoami::fallible::hostname()
                 .ok()
-                .map(|h| Chunk::new("@", h))
+                .map(|h| Chunk::info(Adjoin(("@", h))))
         })
         .flatten()
 }
@@ -75,7 +78,7 @@ pub async fn pwd(opts: &Options) -> Option<Chunk<String>> {
 
 #[inline]
 pub async fn full_pwd(opts: &Options) -> Option<Chunk<String>> {
-    opts.pwd
+    opts.full_pwd
         .then(|| {
             std::env::current_dir()
                 .ok()

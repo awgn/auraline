@@ -54,6 +54,10 @@ static VIRTUALIZATION_MAP: phf::Map<&'static str, VirtualizationInfo> = phf_map!
 };
 
 pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
+    if !opts.virt {
+        return None;
+    }
+
     let virt = CMD
         .exec::<_, &'static str>("systemd-detect-virt", [])
         .await?;

@@ -3,7 +3,11 @@ use smol_str::{format_smolstr, SmolStr};
 
 use crate::{chunk::Chunk, commands::Options};
 
-pub async fn show(_: &Options) -> Option<Chunk<SmolStr>> {
+pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
+    if !opts.ssh {
+        return None;
+    }
+
     let ssh_connection = std::env::var("SSH_CONNECTION").ok()?;
     let parts = ssh_connection
         .split_whitespace()

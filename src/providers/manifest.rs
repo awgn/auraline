@@ -286,7 +286,7 @@ static MANIFEST_MAP: phf::Map<&'static str, LanguageInfo> = phf_map! {
 };
 
 pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
-    if !opts.nerd_font {
+    if !opts.nerd_font || !opts.manifest {
         return None;
     }
 
