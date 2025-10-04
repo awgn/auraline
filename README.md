@@ -31,26 +31,86 @@ cargo install --path .
 This command will instruct Cargo to build auraline with static linking, which will create a static binary.
 The binary will include all necessary dependencies, making it more self-contained and easier to distribute.
 
-Usage
------
+Help
+----
 
 ```text
-Usage: auraline [OPTIONS]
+Usage: auraline <COMMAND>
+
+Commands:
+  prompt
+  init
 
 Options:
-  -p, --path <PATH>    Specify a path where to run the line ($PWD by default)
-  -t, --theme <THEME>  Specify the theme color
-  -s, --short-mode     Enable short mode
-  -f, --fast           Fast mode
-  -n, --nerd-font      Use Nerd Fonts
-  -h, --help           Print help
-  -V, --version        Print version
+      --help     Print help information
+  -V, --version  Print version
 ```
+
+Prompt
+------
+The `prompt` command generates the prompt string that can be embedded in your shell prompt.
+
+```text
+Usage: auraline prompt [OPTIONS]
+
+Options:
+      --help                   Print help information
+  -u, --user                   Basic user info
+  -r, --realname               Basic realname info
+  -h, --hostname               Basic hostname info
+  -d, --device-name            Basic devicename info
+  -D, --distro                 Basic distro info
+  -w, --pwd                    Current working directory
+  -W, --full-pwd               Current working directory (full path)
+  -v, --vcs                    Show VCS info (git, hg, jj, etc.)
+  -s, --ssh                    Show SSH info
+  -o, --os                     Show OS info
+  -V, --virt                   Show virtual env info
+  -n, --netif                  Show network interfaces
+  -N, --netns                  Show network namespace info
+  -m, --memory                 Show memory usage info
+  -H, --huge-pages             Show HugePages info
+  -M, --manifest               Show development package info in the current directory
+  -e, --duration               Show the duration of the last command)
+      --exit-code <EXIT_CODE>  Specify the exit-code of the last command to show
+      --timings                Enable timings mode (dev)
+      --theme <THEME>          Specify the theme color
+      --nerd-font              Use Nerd Fonts
+```
+
+Integration and environment variables
+-------------------------------------
+You can integrate `auraline` into your shell prompt by adding the command to your shell configuration file (e.g., `.bashrc`, `.zshrc`, etc.).
+
+## Bash (~/.bash_profile)
+```
+export AURALINE_PROFILE=nerdy
+export AURALINE_THEME=blue
+eval "$(auraline init bash)"
+```
+
+## Zsh
+```
+export AURALINE_PROFILE=nerdy
+export AURALINE_THEME=blue
+eval "$(auraline init bash)"
+```
+
+Profiles
+--------
+
+The `AURALINE_PROFILE` environment variable allows you to select a predefined profile for the prompt.
+
+You can choose from the following profiles:
+- `minimal`: A minimalistic prompt with only the most essential information (used as default)
+- `lean`: A balanced prompt with a moderate amount of information. Doesn't require Nerd Fonts.
+- `nerdy`: A more detailed prompt with additional information and Nerd Font icons.
 
 Theme Color
 -----------
 
-The `--theme` option allows you to customize the color of the prompt. You can use one of the predefined color names or a true color value.
+The `--theme` option (`AURALINE_THEME` asl well) allows you to customize the color of the prompt.
+You can use one of the predefined color names or a true color value.
 
 ### Predefined Colors
 
@@ -89,54 +149,3 @@ Nerd Fonts
 
 The `-n` or `--nerd-font` option enables the use of Nerd Fonts for icons and symbols in the prompt.
 Make sure you have a Nerd Font installed and configured in your terminal for the symbols to render correctly.
-
-Bash
-----
-
-To use it with bash, configure the shell prompt as follow:
-
-`PS1='\u@\h :: \[\033[1;32m\]\w\[\033[0m\] $(~/.cargo/bin/auraline --theme blue -n)\n-> '`
-
-Zsh
----
-
-For zsh, try the following configuration in .zshrc:
-
-```zsh
-autoload -U colors && colors
-setopt promptsubst
-local git_prompt='$(~/.cargo/bin/auraline --theme blue -n)'
-PS1="%{$fg[green]%}%n@%m %{$fg[blue]%}%c ${git_prompt} %# "
-```
-
-Fish
-----
-
-For fish shell, define the following function in
-~/.config/fish/functions/fish`_prompt.fish:
-
-```fish
-function fish_prompt --description 'Write out the prompt'
-
-    set -l last_status $status
-    set -l git_prompt (~/.cargo/bin/auraline --theme blue -n)
-
-    if not set -q __fish_prompt_normal
-        set -g __fish_prompt_normal (set_color normal)
-    end
-
-    # PWD
-    set_color $fish_color_cwd
-    echo -n (prompt_pwd)
-    set_color normal
-
-    printf '%s ' "{$git_prompt}"
-
-    if not test $last_status -eq 0
-        set_color $fish_color_error
-    end
-
-    echo -n '$ '
-
-end
-```
