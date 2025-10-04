@@ -3,7 +3,7 @@ use smallvec::SmallVec;
 use smol_str::{SmolStr, ToSmolStr};
 use std::collections::BTreeSet;
 
-use crate::{chunk::Chunk, commands::Options};
+use crate::{chunk::Chunk, options::Options};
 
 pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     if !opts.netif {

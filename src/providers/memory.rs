@@ -1,4 +1,4 @@
-use crate::{chunk::Chunk, commands::Options};
+use crate::{chunk::Chunk, options::Options};
 use smol_str::{format_smolstr, SmolStr};
 use sysinfo::{MemoryRefreshKind, RefreshKind};
 

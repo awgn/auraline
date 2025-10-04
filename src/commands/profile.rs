@@ -1,8 +1,8 @@
-use crate::commands::Options;
+use crate::options::Options;
 use smol_str::SmolStr;
 
 const MINIMAL: Options = Options {
-    preset: Some(SmolStr::new_static("minimal")),
+    profile: Some(SmolStr::new_static("minimal")),
     user: true,
     realname: false,
     hostname: true,
@@ -27,7 +27,7 @@ const MINIMAL: Options = Options {
 };
 
 const LEAN: Options = Options {
-    preset: Some(SmolStr::new_static("lean")),
+    profile: Some(SmolStr::new_static("lean")),
     user: true,
     realname: false,
     hostname: true,
@@ -52,7 +52,7 @@ const LEAN: Options = Options {
 };
 
 const NERDY: Options = Options {
-    preset: Some(SmolStr::new_static("nerdy")),
+    profile: Some(SmolStr::new_static("nerdy")),
     user: true,
     realname: false,
     hostname: true,
@@ -76,11 +76,11 @@ const NERDY: Options = Options {
     exit_code: None,
 };
 
-pub fn get_preset(name: &str) -> Option<Options> {
+pub fn get_profile(name: &str) -> Option<Options> {
     match name {
         "minimal" => Some(MINIMAL),
         "lean" => Some(LEAN),
         "nerdy" => Some(NERDY),
-        _ => None,
+        _ => Some(MINIMAL),
     }
 }

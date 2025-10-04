@@ -1,6 +1,6 @@
 use smol_str::SmolStr;
 
-use crate::{chunk::Chunk, cmd::CMD, commands::Options};
+use crate::{chunk::Chunk, cmd::CMD, options::Options};
 
 pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     if !opts.netns {

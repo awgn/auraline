@@ -1,6 +1,6 @@
 use crate::cmd::CMD;
 use crate::providers::vcs::{merge_icons, StatusIcon, VcsTrait};
-use crate::{chunk::Chunk, commands::Options};
+use crate::{chunk::Chunk, options::Options};
 use smallvec::SmallVec;
 use smol_str::{format_smolstr, SmolStr, SmolStrBuilder, ToSmolStr};
 use std::path::Path;

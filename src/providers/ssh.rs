@@ -1,7 +1,7 @@
 use smallvec::SmallVec;
 use smol_str::{format_smolstr, SmolStr};
 
-use crate::{chunk::Chunk, commands::Options};
+use crate::{chunk::Chunk, options::Options};
 
 pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     if !opts.ssh {

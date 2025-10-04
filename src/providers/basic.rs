@@ -1,6 +1,6 @@
 use crate::{
     chunk::{Adjoin, Chunk},
-    commands::Options,
+    options::Options,
 };
 
 #[inline]

@@ -2,7 +2,7 @@ use phf::phf_map;
 
 use crate::{
     chunk::{Chunk, Unit},
-    commands::Options,
+    options::Options,
 };
 
 #[allow(dead_code)]
