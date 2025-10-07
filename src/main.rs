@@ -23,14 +23,7 @@ async fn main() -> anyhow::Result<()> {
 
         options::Commands::Prompt(mut options) => {
             // combine profile options (either specified by command line or env variable)
-            let profile_name = options.profile.clone().or_else(|| {
-                std::env::var("AURALINE_PROFILE")
-                    .ok()
-                    .map(|s| s.to_smolstr())
-            });
-
-            if let Some(profile_name) = profile_name {
-                let profile_name = profile_name.to_smolstr();
+            if let Ok(profile_name) = std::env::var("AURALINE_PROFILE") {
                 let profile_opts = commands::profile::get_profile(&profile_name)
                     .with_context(|| format!("profile '{profile_name}' not found"))?;
                 options = options.combine(&profile_opts);
@@ -46,6 +39,11 @@ async fn main() -> anyhow::Result<()> {
                 if let options::Commands::Prompt(env_opts) = env_cli.command {
                     options = options.combine(&env_opts);
                 }
+            }
+
+            // Combine with theme specified by AURALINE_THEME environment variable
+            if let Ok(theme) = std::env::var("AURALINE_THEME") {
+                options.theme = options.theme.or(Some(theme.to_smolstr()));
             }
 
             commands::prompt::print_prompt(options).await?;

@@ -70,7 +70,7 @@ const NERDY: Options = Options {
     manifest: true,
     vcs: true,
     duration: true,
-    theme: Some(SmolStr::new_static("blue")),
+    theme: None,
     timings: false,
     nerd_font: true,
     exit_code: None,

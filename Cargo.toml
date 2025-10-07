@@ -1,6 +1,6 @@
 [package]
 name = "auraline"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2021"
 
 authors = ["Nicola Bonelli <nicola.bonelli@gmail.com>"]
@@ -23,11 +23,11 @@ itertools = "0.13.0"
 itoa = "1.0.15"
 lazy_static = "1.5.0"
 tokio = { version = "1.47.1", features = ["io-std", "macros", "mio", "process", "rt", "fs", "rt-multi-thread", "sync", "time", "tokio-macros", "io-util"] }
-owo-colors = "4.2.2"
+owo-colors = "4.2.3"
 frunk = "0.4.4"
 smol_str = "0.3.2"
 libc = "0.2.176"
-sysinfo = "0.37.1"
+sysinfo = "0.37.2"
 scopeguard = "1.2.0"
 enum_dispatch = "0.3.13"
 whoami = "1.6.1"
