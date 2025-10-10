@@ -5,6 +5,7 @@ use crate::{
 };
 use smallvec::SmallVec;
 use smol_str::{SmolStr, ToSmolStr};
+use std::convert::Infallible;
 use std::{path::Path, str::FromStr};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,16 +59,18 @@ impl VcsTrait for Darcs {
 }
 
 impl FromStr for StatusIcon<Darcs> {
-    type Err = ();
+    type Err = Infallible;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let chars = s.split_whitespace().next();
-        match chars {
-            Some("R") => Ok(StatusIcon::new("−")),
-            Some("A") => Ok(StatusIcon::new("✚")),
-            Some("M") => Ok(StatusIcon::new("●")),
-            Some("F") => Ok(StatusIcon::new("→")),
-            Some("T") => Ok(StatusIcon::new("→")),
-            _ => Ok(StatusIcon::new("")), // Unknown state
-        }
+        let icon = match chars {
+            Some("R") => StatusIcon::new("−"),
+            Some("A") => StatusIcon::new("✚"),
+            Some("M") => StatusIcon::new("●"),
+            Some("F") => StatusIcon::new("→"),
+            Some("T") => StatusIcon::new("→"),
+            _ => StatusIcon::new(""), // Unknown state
+        };
+
+        Ok(icon)
     }
 }

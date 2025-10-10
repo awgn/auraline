@@ -1,10 +1,11 @@
 use lazy_static::lazy_static;
+use parking_lot::Mutex;
 use smallvec::SmallVec;
 use smol_str::SmolStr;
 use std::{
     collections::HashMap,
     ffi::OsStr,
-    sync::{Arc, Mutex},
+    sync::{Arc},
     task::Poll,
 };
 use tokio::process::Command;
@@ -50,7 +51,7 @@ impl CmdCache {
     {
         let key = Self::make_key(cmd, args.clone());
         let value = {
-            let mut cache = self.cache.lock().unwrap();
+            let mut cache = self.cache.lock();
             let value = cache
                 .entry(key)
                 .or_insert_with(|| CmdOutput(Arc::new(tokio::sync::Mutex::new(Poll::Pending))));

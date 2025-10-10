@@ -71,7 +71,7 @@ macro_rules! item_vcs {
     }};
 }
 
-pub async fn print_prompt(opts: Options) -> Result<(), JoinError> {
+pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
     let start = if opts.timings {
         Some(std::time::Instant::now())
     } else {
@@ -79,7 +79,8 @@ pub async fn print_prompt(opts: Options) -> Result<(), JoinError> {
     };
 
     let opts = Arc::new(opts);
-    let vcs = infer_vcs(env::current_dir().unwrap(), &opts).await;
+    let cwd = env::current_dir()?;
+    let vcs = infer_vcs(cwd, &opts).await;
 
     let (color, bold, def) = (
         build_color_style(opts.theme.as_deref()),

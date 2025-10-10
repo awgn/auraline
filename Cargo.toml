@@ -1,6 +1,6 @@
 [package]
 name = "auraline"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2021"
 
 authors = ["Nicola Bonelli <nicola.bonelli@gmail.com>"]
@@ -32,6 +32,7 @@ scopeguard = "1.2.0"
 enum_dispatch = "0.3.13"
 whoami = "1.6.1"
 smallvec = { version = "1.15.1", features = ["const_generics"] }
+parking_lot = "0.12.5"
 
 [profile.release]
 codegen-units    = 1
