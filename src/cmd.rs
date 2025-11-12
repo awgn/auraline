@@ -2,12 +2,7 @@ use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use smallvec::SmallVec;
 use smol_str::SmolStr;
-use std::{
-    collections::HashMap,
-    ffi::OsStr,
-    sync::{Arc},
-    task::Poll,
-};
+use std::{collections::HashMap, ffi::OsStr, sync::Arc, task::Poll};
 use tokio::process::Command;
 
 lazy_static! {

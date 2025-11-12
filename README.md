@@ -144,6 +144,47 @@ You can also specify a true color value in the format `r,g,b`, where `r`, `g`, a
 Example:
 `auraline --theme 128,0,128`
 
+Supported Providers
+-------------------
+
+`auraline` supports a wide range of information providers that can be displayed in your prompt. Each provider can be enabled using the corresponding command-line option.
+
+### Basic Information
+- **User** (`-u`, `--user`): Current username
+- **Realname** (`-r`, `--realname`): User's real name
+- **Hostname** (`-h`, `--hostname`): System hostname
+- **Device Name** (`-d`, `--device-name`): Device name
+- **Distro** (`-D`, `--distro`): Linux distribution name
+- **PWD** (`-w`, `--pwd`): Current working directory (with `~` expansion)
+- **Full PWD** (`-W`, `--full-pwd`): Current working directory (absolute path)
+
+### Version Control Systems
+The VCS provider (`-v`, `--vcs`) automatically detects and displays information from the following version control systems:
+- **Git**: Branch name, commit info, status (staged, modified, untracked files)
+- **Mercurial (hg)**: Branch name, commit hash, status
+- **Jujutsu (jj)**: Branch name, commit info, status
+- **Pijul**: Channel name, change hash, status
+- **Darcs**: Commit information, status
+
+### System Information
+- **OS** (`-o`, `--os`): Operating system icon (supports 60+ Linux distributions, BSD variants, macOS, Windows)
+- **SSH** (`-s`, `--ssh`): SSH connection information (remote IP and port)
+- **Memory** (`-m`, `--memory`): Current memory usage percentage
+- **HugePages** (`-H`, `--huge-pages`): HugePages configuration and allocation (NUMA-aware)
+- **Network Interface** (`-n`, `--netif`): Active network interfaces
+- **Network Namespace** (`-N`, `--netns`): Current network namespace
+
+### Virtualization & Containers
+The virtualization provider (`-V`, `--virt`) detects and displays information about:
+- **Hypervisors**: KVM, QEMU, VMware, VirtualBox, Hyper-V, Xen, bhyve, Parallels, and more
+- **Cloud Platforms**: Amazon EC2, Google Cloud Platform, Azure
+- **Containers**: Docker, Podman, LXC, systemd-nspawn, WSL, OpenVZ, and more
+
+### Development & Execution
+- **Manifest** (`-M`, `--manifest`): Detects development environment from manifest files (supports 50+ languages and frameworks including Rust, Python, Node.js, Go, Java, C/C++, etc.)
+- **Duration** (`-e`, `--duration`): Execution time of the last command
+- **Exit Code** (`--exit-code`): Exit code of the last command (shown only on error)
+
 Nerd Fonts
 ----------
 
