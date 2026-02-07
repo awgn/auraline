@@ -1,6 +1,6 @@
 [package]
 name = "auraline"
-version = "0.6.4"
+version = "0.6.5"
 edition = "2021"
 
 authors = ["Nicola Bonelli <nicola.bonelli@gmail.com>"]
@@ -15,8 +15,8 @@ categories = ["command-line-utilities"]
 [dependencies]
 phf = { version = "0.13.1", features = ["macros"] }
 phf_macros = "0.13.1"
-anyhow = "1.0.100"
-clap = { version = "4.5.54", features = ["derive"] }
+anyhow = "1.0.101"
+clap = { version = "4.5.57", features = ["derive"] }
 futures = "0.3.31"
 if-addrs = "0.14.0"
 itertools = "0.13.0"
