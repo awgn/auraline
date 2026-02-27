@@ -47,7 +47,7 @@ pub async fn distro(opts: &Options) -> Option<Chunk<String>> {
 }
 
 #[inline]
-pub async fn pwd(opts: &Options) -> Option<Chunk<String>> {
+pub async fn pwd(opts: &Options) -> Option<Chunk<std::borrow::Cow<'static, str>>> {
     let home = std::env::home_dir();
     opts.pwd
         .then(|| {
@@ -55,19 +55,19 @@ pub async fn pwd(opts: &Options) -> Option<Chunk<String>> {
                 let pwd = if let Some(home) = &home {
                     if let Ok(stripped) = p.strip_prefix(home) {
                         if stripped.as_os_str().is_empty() {
-                            "~".to_string()
+                            std::borrow::Cow::Borrowed("~")
                         } else {
-                            format!(
-                                "~{}",
-                                std::path::MAIN_SEPARATOR.to_string().to_owned()
-                                    + &stripped.to_string_lossy()
-                            )
+                            std::borrow::Cow::Owned(format!(
+                                "~{}{}",
+                                std::path::MAIN_SEPARATOR,
+                                stripped.display()
+                            ))
                         }
                     } else {
-                        p.to_string_lossy().to_string()
+                        std::borrow::Cow::Owned(p.to_string_lossy().into_owned())
                     }
                 } else {
-                    p.to_string_lossy().to_string()
+                    std::borrow::Cow::Owned(p.to_string_lossy().into_owned())
                 };
 
                 Chunk::info(pwd)
@@ -82,7 +82,7 @@ pub async fn full_pwd(opts: &Options) -> Option<Chunk<String>> {
         .then(|| {
             std::env::current_dir()
                 .ok()
-                .map(|pwd| Chunk::info(pwd.to_string_lossy().to_string()))
+                .map(|pwd| Chunk::info(pwd.to_string_lossy().into_owned()))
         })
         .flatten()
 }

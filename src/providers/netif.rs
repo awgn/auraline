@@ -1,6 +1,4 @@
-use itertools::Itertools;
-use smallvec::SmallVec;
-use smol_str::{SmolStr, ToSmolStr};
+use smol_str::{SmolStr, SmolStrBuilder, ToSmolStr};
 use std::collections::BTreeSet;
 
 use crate::{chunk::Chunk, options::Options};
@@ -17,9 +15,16 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
             matches!(ni.oper_status, if_addrs::IfOperStatus::Up).then_some(ni.name.to_smolstr())
         })
         .collect::<BTreeSet<_>>();
-    let names = uniq.iter().collect::<SmallVec<[_; 8]>>();
-    Some(Chunk::new(
-        "󰛳",
-        names.iter().copied().join(",").to_smolstr(),
-    )) // FIXME: avoid allocation here
+
+    let mut builder = SmolStrBuilder::new();
+    let mut first = true;
+    for name in uniq {
+        if !first {
+            builder.push(',');
+        }
+        builder.push_str(&name);
+        first = false;
+    }
+
+    Some(Chunk::new("󰛳", builder.finish()))
 }

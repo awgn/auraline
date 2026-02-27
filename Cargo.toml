@@ -1,6 +1,6 @@
 [package]
 name = "auraline"
-version = "0.6.5"
+version = "0.7.0"
 edition = "2021"
 
 authors = ["Nicola Bonelli <nicola.bonelli@gmail.com>"]
@@ -15,18 +15,18 @@ categories = ["command-line-utilities"]
 [dependencies]
 phf = { version = "0.13.1", features = ["macros"] }
 phf_macros = "0.13.1"
-anyhow = "1.0.101"
-clap = { version = "4.5.57", features = ["derive"] }
-futures = "0.3.31"
+anyhow = "1.0.102"
+clap = { version = "4.5.60", features = ["derive"] }
+futures = "0.3.32"
 if-addrs = "0.14.0"
 itertools = "0.13.0"
 itoa = "1.0.17"
 lazy_static = "1.5.0"
 tokio = { version = "1.49.0", features = ["io-std", "macros", "mio", "process", "rt", "fs", "rt-multi-thread", "sync", "time", "tokio-macros", "io-util"] }
-owo-colors = "4.2.3"
+owo-colors = "4.3.0"
 frunk = "0.4.4"
 smol_str = "0.3.5"
-libc = "0.2.180"
+libc = "0.2.182"
 sysinfo = "0.37.2"
 scopeguard = "1.2.0"
 enum_dispatch = "0.3.13"

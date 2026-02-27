@@ -103,10 +103,12 @@ async fn get_hg_commit_hash(base: &Path) -> Option<SmolStr> {
 
     let mut hex_string = SmolStrBuilder::new();
 
+    use std::fmt::Write;
+
     // Iterate over each byte in the buffer and format it as a two-digit
     // hexadecimal string. Dump only the first 8 bytes (16 hex characters).
     for byte in &hash_bytes[..8] {
-        hex_string.push_str(&format!("{:02x}", byte));
+        let _ = write!(hex_string, "{:02x}", byte);
     }
 
     hex_string.push('+');

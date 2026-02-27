@@ -143,12 +143,12 @@ pub async fn get_hugepages_status() -> Option<SmallVec<[HugePage; 4]>> {
 }
 
 /// Helper function to format size in kilobytes into a human-readable string (KB, MB, GB).
-fn format_kb(kb: u64) -> String {
+fn format_kb(kb: u64) -> SmolStr {
     if kb < 1024 {
-        format!("{}KB", kb)
+        format_smolstr!("{}KB", kb)
     } else if kb < 1024 * 1024 {
-        format!("{}MB", kb / 1024)
+        format_smolstr!("{}MB", kb / 1024)
     } else {
-        format!("{}GB", kb / (1024 * 1024))
+        format_smolstr!("{}GB", kb / (1024 * 1024))
     }
 }
