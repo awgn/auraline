@@ -103,7 +103,7 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
         item![ssh_show, opts, (bold, def)],
         item![netif_show, opts, (bold.dimmed(), def.dimmed())],
         item![net_namespace, opts, (bold, bold)],
-        item![manifest_show, opts, (color, color)],
+        item![manifest_show, opts, (color, bold)],
         item_vcs![vcs, <Vcs as VcsTrait>::branch, opts, (bold, color.bold())],
         item_vcs![vcs, <Vcs as VcsTrait>::status, opts, (bold, color)],
         item_vcs![vcs, <Vcs as VcsTrait>::stash, opts, (bold, def)],

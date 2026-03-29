@@ -284,26 +284,172 @@ static MANIFEST_MAP: phf::Map<&'static str, LanguageInfo> = phf_map! {
     ".zig" => LanguageInfo { icon: "", color: "#f7a41d", cterm_color: "214", name: "Zig", kind: MatchKind::Indicator },
 };
 
+/// Heuristic used to locate the version string inside a manifest file's content.
+#[derive(Clone, Copy)]
+enum VersionStrategy {
+    /// Scan the whole content for `needle`; the version is the `"…"` immediately after it.
+    /// Safe to use when the needle is unique enough not to match dependency specs.
+    /// e.g. `"version: \""` in mix.exs, `"\"version\": \""` in JSON files.
+    QuotedAfter(&'static str),
+
+    /// Find the first line whose start matches `prefix`, then extract the first `"…"` on it.
+    /// Use this when the same key appears inside dependency inline-tables on other lines.
+    /// e.g. `"version"` in Cargo.toml avoids matching `serde = { version = "1.0" }`.
+    LineFirstQuoted(&'static str),
+
+    /// Find the first line whose start matches `prefix`, take the bare value after it
+    /// (leading whitespace stripped) up to the first whitespace, `)`, or `#`.
+    /// e.g. `"version:"` in .cabal / pubspec.yaml, `"(version "` in dune-project.
+    LineUnquoted(&'static str),
+
+    /// Find `open` anywhere in the content; extract the text between `open` and `close`.
+    /// e.g. `("<version>", "</version>")` for pom.xml.
+    XmlBetween(&'static str, &'static str),
+}
+
+/// Map a MANIFEST_MAP lookup key (filename or `.ext`) to the appropriate extraction strategy.
+/// Returns `None` for manifests that carry no self-declared version (go.mod, Gemfile, …).
+fn version_strategy(key: &str) -> Option<VersionStrategy> {
+    Some(match key {
+        // ── TOML-like: line-start guard avoids matching dependency version specs ──────────
+        "Cargo.toml" | "Project.toml" | "pyproject.toml" | ".nimble" | ".rockspec" | "dub.sdl"
+        | "opam" => VersionStrategy::LineFirstQuoted("version"),
+
+        // ── Elixir Mix: `version: "1.0.0"` — the `: ` makes it unique in .exs ────────────
+        "mix.exs" => VersionStrategy::QuotedAfter("version: \""),
+
+        // ── JSON-based manifests ──────────────────────────────────────────────────────────
+        "package.json" | "composer.json" | "haxelib.json" | "dub.json" | "elm.json" => {
+            VersionStrategy::QuotedAfter("\"version\": \"")
+        }
+
+        // ── Ruby gemspec: `.version = "…"` ───────────────────────────────────────────────
+        ".gemspec" => VersionStrategy::QuotedAfter(".version = \""),
+
+        // ── Scala SBT: `version := "…"` ──────────────────────────────────────────────────
+        "build.sbt" => VersionStrategy::QuotedAfter("version := \""),
+
+        // ── Common Lisp ASDF: `:version "…"` in defsystem ───────────────────────────────
+        ".asd" => VersionStrategy::QuotedAfter(":version \""),
+
+        // ── Racket info.rkt: `(define version "…")` ──────────────────────────────────────
+        "info.rkt" => VersionStrategy::QuotedAfter("(define version \""),
+
+        // ── Unquoted / different delimiters ──────────────────────────────────────────────
+        // .cabal:       `version:             0.1.0.0`
+        // pubspec.yaml: `version: 1.0.0+1`
+        ".cabal" | "pubspec.yaml" => VersionStrategy::LineUnquoted("version:"),
+        // dune-project: `(version 3.0)`
+        "dune-project" => VersionStrategy::LineUnquoted("(version "),
+
+        // ── XML ───────────────────────────────────────────────────────────────────────────
+        "pom.xml" => VersionStrategy::XmlBetween("<version>", "</version>"),
+        ".csproj" | ".fsproj" => VersionStrategy::XmlBetween("<Version>", "</Version>"),
+
+        // Everything else (go.mod, Package.swift, flake.nix, Gemfile, …) has no
+        // self-declared version we can reliably extract.
+        _ => return None,
+    })
+}
+
+/// Apply `strategy` to the raw text of a manifest file and return the version string,
+/// or `None` if the pattern is not found or the matched value is empty.
+fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> {
+    match strategy {
+        VersionStrategy::QuotedAfter(needle) => {
+            let start = content.find(needle)? + needle.len();
+            let rest = &content[start..];
+            let end = rest.find('"')?;
+            let v = &rest[..end];
+            (!v.is_empty()).then(|| SmolStr::new(v))
+        }
+
+        VersionStrategy::LineFirstQuoted(prefix) => {
+            for line in content.lines() {
+                if !line.starts_with(prefix) {
+                    continue;
+                }
+                // Find the first quoted string on this line.
+                let q_open = line.find('"')?;
+                let rest = &line[q_open + 1..];
+                let q_end = rest.find('"')?;
+                let v = &rest[..q_end];
+                if !v.is_empty() {
+                    return Some(SmolStr::new(v));
+                }
+            }
+            None
+        }
+
+        VersionStrategy::LineUnquoted(prefix) => {
+            for line in content.lines() {
+                if !line.starts_with(prefix) {
+                    continue;
+                }
+                let rest = line[prefix.len()..].trim_start();
+                // Stop at whitespace, closing paren, or comment marker.
+                let end = rest
+                    .find(|c: char| c.is_whitespace() || c == ')' || c == '#')
+                    .unwrap_or(rest.len());
+                let v = &rest[..end];
+                if !v.is_empty() {
+                    return Some(SmolStr::new(v));
+                }
+            }
+            None
+        }
+
+        VersionStrategy::XmlBetween(open, close) => {
+            let start = content.find(open)? + open.len();
+            let rest = &content[start..];
+            let end = rest.find(close)?;
+            let v = rest[..end].trim();
+            (!v.is_empty()).then(|| SmolStr::new(v))
+        }
+    }
+}
+
+/// Read `path` from disk and attempt to extract the version using the strategy
+/// associated with `key` (the MANIFEST_MAP lookup key for that file).
+async fn version_from_file(path: &std::path::Path, key: &str) -> Option<SmolStr> {
+    let strategy = version_strategy(key)?;
+    let content = tokio::fs::read_to_string(path).await.ok()?;
+    extract_version(strategy, &content)
+}
+
 pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     if !opts.nerd_font || !opts.manifest {
         return None;
     }
 
-    // retrieve the list of files in the current directory
-    let mut entries = tokio::fs::read_dir(".").await.ok()?;
-    let mut languages = SmallVec::<[_; 8]>::new();
+    let mut entries   = tokio::fs::read_dir(".").await.ok()?;
+    let mut languages: SmallVec<[&LanguageInfo; 8]> = SmallVec::new();
+    // All ProjectManifest entries found during the scan, in filesystem order.
+    // We will try each in sequence and return the first that yields a version.
+    let mut manifests: SmallVec<[(std::path::PathBuf, SmolStr); 4]> = SmallVec::new();
 
     while let Some(entry) = entries.next_entry().await.ok()? {
-        // skip hidden files
-        if entry.file_name().to_str()?.starts_with('.') {
+        let file_name = entry.file_name();
+        // Skip non-UTF-8 names (continue instead of aborting the whole scan).
+        let Some(name) = file_name.to_str() else {
+            continue;
+        };
+        // Skip hidden / dot-files.
+        if name.starts_with('.') {
             continue;
         }
 
-        let lang = MANIFEST_MAP.get(entry.file_name().to_str()?);
-        if let Some(lang) = lang {
+        if let Some(lang) = MANIFEST_MAP.get(name) {
+            if lang.kind == MatchKind::ProjectManifest {
+                manifests.push((entry.path(), SmolStr::new(name)));
+            }
             languages.push(lang);
         } else if let Some(ext) = entry.path().extension().and_then(|s| s.to_str()) {
-            if let Some(lang) = MANIFEST_MAP.get(&format_smolstr!(".{ext}")) {
+            let key = format_smolstr!(".{ext}");
+            if let Some(lang) = MANIFEST_MAP.get(key.as_str()) {
+                if lang.kind == MatchKind::ProjectManifest {
+                    manifests.push((entry.path(), key));
+                }
                 languages.push(lang);
             }
         }
@@ -318,11 +464,10 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
         }
     });
 
-    // return the languages icons with highest confidence...
-    let top_confidence = languages.first()?.kind;
-    languages.retain(|lang| lang.kind == top_confidence);
+    let top_kind = languages.first()?.kind;
+    languages.retain(|lang| lang.kind == top_kind);
 
-    // flatten to a single string
+    // Concatenate deduplicated icons into a SmolStr.
     let mut builder = SmolStrBuilder::new();
     let mut cur_icon = "";
     for lang in &languages {
@@ -331,5 +476,27 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
             cur_icon = lang.icon;
         }
     }
-    Some(Chunk::info(builder.finish()))
+    let icons = builder.finish();
+
+    // Attempt version extraction only when the top tier is ProjectManifest.
+    // Try each collected manifest in filesystem order; stop at the first that
+    // yields a non-None version (version_from_file returns None immediately for
+    // manifests with no strategy, so we avoid unnecessary file reads).
+    let version = if top_kind == MatchKind::ProjectManifest {
+        let mut found = None;
+        for (path, key) in &manifests {
+            if let Some(v) = version_from_file(path, key).await {
+                found = Some(v);
+                break;
+            }
+        }
+        found
+    } else {
+        None
+    };
+
+    Some(match version {
+        Some(v) => Chunk::new(icons, format_smolstr!("v{v}")),
+        None => Chunk::icon(icons),
+    })
 }
