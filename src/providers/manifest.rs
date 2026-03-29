@@ -110,7 +110,7 @@ static MANIFEST_MAP: phf::Map<&'static str, LanguageInfo> = phf_map! {
     // C & C++
     "Makefile" => LanguageInfo { icon: "", color: "#6792c9", cterm_color: "67", name: "C/C++", lang: Language::CCpp, kind: MatchKind::Generic },
     "Makefile.am" => LanguageInfo { icon: "", color: "#6792c9", cterm_color: "67", name: "C/C++", lang: Language::CCpp, kind: MatchKind::Generic },
-    "CMakeLists.txt" => LanguageInfo { icon: "", color: "#6792c9", cterm_color: "67", name: "C/C++", lang: Language::CCpp, kind: MatchKind::Generic },
+    "CMakeLists.txt" => LanguageInfo { icon: "", color: "#6792c9", cterm_color: "67", name: "C/C++", lang: Language::CCpp, kind: MatchKind::ProjectManifest },
     "meson.build" => LanguageInfo { icon: "", color: "#6792c9", cterm_color: "67", name: "C/C++", lang: Language::CCpp, kind: MatchKind::Generic },
     "autogen.sh" => LanguageInfo { icon: "", color: "#6792c9", cterm_color: "67", name: "C/C++", lang: Language::CCpp, kind: MatchKind::Generic },
     "configure.ac" => LanguageInfo { icon: "", color: "#6792c9", cterm_color: "67", name: "C/C++", lang: Language::CCpp, kind: MatchKind::Generic },
@@ -225,7 +225,7 @@ static MANIFEST_MAP: phf::Map<&'static str, LanguageInfo> = phf_map! {
 
     // Java & JVM
     "pom.xml" => LanguageInfo { icon: "", color: "#cc0000", cterm_color: "160", name: "Java/JVM", lang: Language::Java, kind: MatchKind::ProjectManifest},
-    "build.gradle" => LanguageInfo { icon: "", color: "#cc0000", cterm_color: "160", name: "Java/JVM", lang: Language::Java, kind: MatchKind::Generic },
+    "build.gradle" => LanguageInfo { icon: "", color: "#cc0000", cterm_color: "160", name: "Java/JVM", lang: Language::Java, kind: MatchKind::ProjectManifest },
     ".java" => LanguageInfo { icon: "", color: "#cc0000", cterm_color: "160", name: "Java", lang: Language::Java, kind: MatchKind::Indicator },
 
     // JavaScript / TypeScript / Node
@@ -236,7 +236,7 @@ static MANIFEST_MAP: phf::Map<&'static str, LanguageInfo> = phf_map! {
     "Project.toml" => LanguageInfo { icon: "", color: "#a270ba", cterm_color: "140", name: "Julia", lang: Language::Julia, kind: MatchKind::ProjectManifest},
 
     // Kotlin
-    "build.gradle.kts" => LanguageInfo { icon: "󱈙", color: "#7f52ff", cterm_color: "99", name: "Kotlin", lang: Language::Kotlin, kind: MatchKind::Indicator},
+    "build.gradle.kts" => LanguageInfo { icon: "󱈙", color: "#7f52ff", cterm_color: "99", name: "Kotlin", lang: Language::Kotlin, kind: MatchKind::ProjectManifest},
     ".kt" => LanguageInfo { icon: "󱈙", color: "#7f52ff", cterm_color: "99", name: "Kotlin", lang: Language::Kotlin, kind: MatchKind::Indicator },
     ".kts" => LanguageInfo { icon: "󱈙", color: "#7f52ff", cterm_color: "99", name: "Kotlin", lang: Language::Kotlin, kind: MatchKind::Indicator },
 
@@ -265,6 +265,7 @@ static MANIFEST_MAP: phf::Map<&'static str, LanguageInfo> = phf_map! {
     // OCaml
     "dune-project" => LanguageInfo { icon: "", color: "#ec6813", cterm_color: "166", name: "OCaml", lang: Language::OCaml, kind: MatchKind::ProjectManifest},
     "opam" => LanguageInfo { icon: "", color: "#ec6813", cterm_color: "166", name: "OCaml", lang: Language::OCaml, kind: MatchKind::ProjectManifest},
+    ".opam" => LanguageInfo { icon: "", color: "#ec6813", cterm_color: "166", name: "OCaml", lang: Language::OCaml, kind: MatchKind::ProjectManifest},
     ".ml" => LanguageInfo { icon: "", color: "#ec6813", cterm_color: "166", name: "OCaml", lang: Language::OCaml, kind: MatchKind::Indicator },
     ".mli" => LanguageInfo { icon: "", color: "#ec6813", cterm_color: "166", name: "OCaml", lang: Language::OCaml, kind: MatchKind::Indicator },
 
@@ -288,6 +289,7 @@ static MANIFEST_MAP: phf::Map<&'static str, LanguageInfo> = phf_map! {
 
     // Python
     "pyproject.toml" => LanguageInfo { icon: "", color: "#f6c43b", cterm_color: "203", name: "Python", lang: Language::Python, kind: MatchKind::ProjectManifest},
+    "setup.cfg" => LanguageInfo { icon: "", color: "#f6c43b", cterm_color: "203", name: "Python", lang: Language::Python, kind: MatchKind::ProjectManifest},
     "Pipfile" => LanguageInfo { icon: "", color: "#f6c43b", cterm_color: "203", name: "Python", lang: Language::Python, kind: MatchKind::ProjectManifest},
     ".py" => LanguageInfo { icon: "", color: "#f6c43b", cterm_color: "203", name: "Python", lang: Language::Python, kind: MatchKind::Indicator },
     ".pyx" => LanguageInfo { icon: "", color: "#f6c43b", cterm_color: "203", name: "Cython", lang: Language::Python, kind: MatchKind::Indicator },
@@ -344,6 +346,7 @@ static MANIFEST_MAP: phf::Map<&'static str, LanguageInfo> = phf_map! {
     ".vhdl" => LanguageInfo { icon: "V", color: "#AD0000", cterm_color: "88", name: "VHDL", lang: Language::Vhdl, kind: MatchKind::Indicator},
 
     // Zig
+    "build.zig.zon" => LanguageInfo { icon: "", color: "#f7a41d", cterm_color: "214", name: "Zig", lang: Language::Zig, kind: MatchKind::ProjectManifest},
     "build.zig" => LanguageInfo { icon: "", color: "#f7a41d", cterm_color: "214", name: "Zig", lang: Language::Zig, kind: MatchKind::ProjectManifest},
     ".zig" => LanguageInfo { icon: "", color: "#f7a41d", cterm_color: "214", name: "Zig", lang: Language::Zig, kind: MatchKind::Indicator },
 };
@@ -351,24 +354,38 @@ static MANIFEST_MAP: phf::Map<&'static str, LanguageInfo> = phf_map! {
 /// Heuristic used to locate the version string inside a manifest file's content.
 #[derive(Clone, Copy)]
 enum VersionStrategy {
-    /// Scan the whole content for `needle`; the version is the `"…"` immediately after it.
-    /// Safe to use when the needle is unique enough not to match dependency specs.
-    /// e.g. `"version: \""` in mix.exs, `"\"version\": \""` in JSON files.
-    QuotedAfter(&'static str),
+    /// Search for a key, then a separator, then extract the quoted value.
+    /// Ignores whitespace between key, separator, and value.
+    /// e.g. `KeyValueQuoted("version", ":")` for JSON, `KeyValueQuoted("version", "=")` for TOML.
+    KeyValueQuoted(&'static str, &'static str),
+
+    /// Search for a key, then a separator, then extract the unquoted value.
+    /// Ignores whitespace between key, separator, and value.
+    /// e.g. `KeyValueUnquoted("version", "=")` for setup.cfg.
+    KeyValueUnquoted(&'static str, &'static str),
 
     /// Find the first line whose start matches `prefix`, then extract the first `"…"` on it.
     /// Use this when the same key appears inside dependency inline-tables on other lines.
     /// e.g. `"version"` in Cargo.toml avoids matching `serde = { version = "1.0" }`.
-    LineFirstQuoted(&'static str),
+    LinePrefixQuoted(&'static str),
 
     /// Find the first line whose start matches `prefix`, take the bare value after it
     /// (leading whitespace stripped) up to the first whitespace, `)`, or `#`.
     /// e.g. `"version:"` in .cabal / pubspec.yaml, `"(version "` in dune-project.
-    LineUnquoted(&'static str),
+    LinePrefixUnquoted(&'static str),
 
     /// Find `open` anywhere in the content; extract the text between `open` and `close`.
     /// e.g. `("<version>", "</version>")` for pom.xml.
     XmlBetween(&'static str, &'static str),
+
+    /// Search for `VERSION` inside a CMake project() declaration.
+    CMakeVersion,
+
+    /// Search for `<Version>` or `<PackageVersion>` in MSBuild projects.
+    MSBuildVersion,
+
+    /// Search for `.version` in Ruby gemspecs.
+    RubyGemspec,
 }
 
 /// Map a `Language` (with an optional key for disambiguation) to the appropriate
@@ -376,86 +393,107 @@ enum VersionStrategy {
 /// version (go.mod, stack.yaml, Gemfile, Pipfile, …).
 fn version_strategy(lang: Language, key: &str) -> Option<VersionStrategy> {
     use Language::*;
-    Some(match (lang, key) {
-        // ── TOML-like: line-start guard avoids matching dependency version specs ──────────
-        (Rust, _) | (Julia, _) | (Nim, _) => VersionStrategy::LineFirstQuoted("version"),
-        (Python, "pyproject.toml") => VersionStrategy::LineFirstQuoted("version"),
-        (Lua, ".rockspec") => VersionStrategy::LineFirstQuoted("version"),
-
-        // ── D: two manifest formats ──────────────────────────────────────────────────────
-        (D, "dub.sdl") => VersionStrategy::LineFirstQuoted("version"),
-        (D, "dub.json") => VersionStrategy::QuotedAfter("\"version\": \""),
-
-        // ── OCaml: two manifest formats ──────────────────────────────────────────────────
-        (OCaml, "opam") => VersionStrategy::LineFirstQuoted("version"),
-        (OCaml, "dune-project") => VersionStrategy::LineUnquoted("(version "),
-
-        // ── Elixir Mix: `version: "1.0.0"` — the `: ` makes it unique in .exs ───────────
-        (Elixir, _) => VersionStrategy::QuotedAfter("version: \""),
-
-        // ── JSON-based manifests ─────────────────────────────────────────────────────────
+    match (lang, key) {
+        (Rust, _) | (Julia, _) | (Nim, _) => Some(VersionStrategy::LinePrefixQuoted("version")),
+        (Python, "pyproject.toml") => Some(VersionStrategy::KeyValueQuoted("version", "=")),
+        (Python, "setup.cfg") => Some(VersionStrategy::KeyValueUnquoted("version", "=")),
+        (Lua, ".rockspec") => Some(VersionStrategy::LinePrefixQuoted("version")),
+        (CCpp, "CMakeLists.txt") => Some(VersionStrategy::CMakeVersion),
+        (D, "dub.sdl") => Some(VersionStrategy::LinePrefixQuoted("version")),
+        (D, "dub.json") => Some(VersionStrategy::KeyValueQuoted("\"version\"", ":")),
+        (OCaml, "opam") | (OCaml, ".opam") => Some(VersionStrategy::LinePrefixQuoted("version")),
+        (OCaml, "dune-project") => Some(VersionStrategy::LinePrefixUnquoted("(version ")),
+        (Elixir, _) => Some(VersionStrategy::KeyValueQuoted("version", ":")),
         (JavaScript, _) | (Php, _) | (Haxe, _) | (Elm, _) => {
-            VersionStrategy::QuotedAfter("\"version\": \"")
+            Some(VersionStrategy::KeyValueQuoted("\"version\"", ":"))
         }
-
-        // ── Ruby gemspec: `.version = "…"` ───────────────────────────────────────────────
-        (Ruby, ".gemspec") => VersionStrategy::QuotedAfter(".version = \""),
-
-        // ── Scala SBT: `version := "…"` ─────────────────────────────────────────────────
-        (Scala, _) => VersionStrategy::QuotedAfter("version := \""),
-
-        // ── Common Lisp ASDF: `:version "…"` in defsystem ───────────────────────────────
-        (CommonLisp, _) => VersionStrategy::QuotedAfter(":version \""),
-
-        // ── Racket info.rkt: `(define version "…")` ─────────────────────────────────────
-        (Racket, _) => VersionStrategy::QuotedAfter("(define version \""),
-
-        // ── Unquoted key-value ───────────────────────────────────────────────────────────
-        // .cabal:       `version:             0.1.0.0`
-        // pubspec.yaml: `version: 1.0.0+1`
-        (Haskell, ".cabal") | (Dart, _) => VersionStrategy::LineUnquoted("version:"),
-
-        // ── XML ──────────────────────────────────────────────────────────────────────────
-        (Java, _) => VersionStrategy::XmlBetween("<version>", "</version>"),
-        (CSharp, _) | (FSharp, _) => VersionStrategy::XmlBetween("<Version>", "</Version>"),
-
-        // Everything else (Go, Swift, Nix, Haskell/stack.yaml, Gemfile, Pipfile, …)
+        (Ruby, ".gemspec") => Some(VersionStrategy::RubyGemspec),
+        (Scala, _) => Some(VersionStrategy::KeyValueQuoted("version", ":=")),
+        (CommonLisp, _) => Some(VersionStrategy::LinePrefixQuoted(":version")),
+        (Racket, _) => Some(VersionStrategy::LinePrefixQuoted("(define version")),
+        (Haskell, ".cabal") | (Dart, _) => Some(VersionStrategy::LinePrefixUnquoted("version:")),
+        (Java, "pom.xml") => Some(VersionStrategy::XmlBetween("<version>", "</version>")),
+        (Java, "build.gradle") => Some(VersionStrategy::KeyValueQuoted("version", "=")),
+        (Kotlin, "build.gradle.kts") => Some(VersionStrategy::KeyValueQuoted("version", "=")),
+        (CSharp, _) | (FSharp, _) => Some(VersionStrategy::MSBuildVersion),
+        (Zig, "build.zig.zon") => Some(VersionStrategy::KeyValueQuoted(".version", "=")),
+        // Everything else (Go, Swift, Nix, Gemfile, Pipfile, …)
         // has no self-declared version we can reliably extract.
-        _ => return None,
-    })
+        _ => None,
+    }
 }
 
 /// Apply `strategy` to the raw text of a manifest file and return the version string,
 /// or `None` if the pattern is not found or the matched value is empty.
 fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> {
     match strategy {
-        VersionStrategy::QuotedAfter(needle) => {
-            let start = content.find(needle)? + needle.len();
-            let rest = &content[start..];
-            let end = rest.find('"')?;
-            let v = &rest[..end];
-            (!v.is_empty()).then(|| SmolStr::new(v))
-        }
-
-        VersionStrategy::LineFirstQuoted(prefix) => {
+        VersionStrategy::KeyValueQuoted(key, sep) => {
             for line in content.lines() {
-                if !line.starts_with(prefix) {
-                    continue;
-                }
-                // Find the first quoted string on this line.
-                let q_open = line.find('"')?;
-                let rest = &line[q_open + 1..];
-                let q_end = rest.find('"')?;
-                let v = &rest[..q_end];
-                if !v.is_empty() {
-                    return Some(SmolStr::new(v));
+                let line = line.trim_start();
+                if line.starts_with(key) {
+                    let rest = line[key.len()..].trim_start();
+                    if rest.starts_with(sep) {
+                        let rest = rest[sep.len()..].trim_start();
+                        if let Some(q_open) = rest.find(|c| c == '"' || c == '\'') {
+                            let quote_char = rest.chars().nth(q_open).unwrap();
+                            let rest = &rest[q_open + 1..];
+                            if let Some(q_end) = rest.find(quote_char) {
+                                let v = &rest[..q_end];
+                                if !v.is_empty() {
+                                    return Some(SmolStr::new(v));
+                                }
+                            }
+                        }
+                    }
                 }
             }
             None
         }
 
-        VersionStrategy::LineUnquoted(prefix) => {
+        VersionStrategy::KeyValueUnquoted(key, sep) => {
             for line in content.lines() {
+                let line = line.trim_start();
+                if line.starts_with(key) {
+                    let rest = line[key.len()..].trim_start();
+                    if rest.starts_with(sep) {
+                        let rest = rest[sep.len()..].trim_start();
+                        let end = rest
+                            .find(|c: char| c.is_whitespace() || c == ')' || c == '#')
+                            .unwrap_or(rest.len());
+                        let v = &rest[..end];
+                        if !v.is_empty() {
+                            return Some(SmolStr::new(v));
+                        }
+                    }
+                }
+            }
+            None
+        }
+
+        VersionStrategy::LinePrefixQuoted(prefix) => {
+            for line in content.lines() {
+                let line = line.trim_start();
+                if !line.starts_with(prefix) {
+                    continue;
+                }
+                // Find the first quoted string on this line.
+                if let Some(q_open) = line.find(|c| c == '"' || c == '\'') {
+                    let quote_char = line.chars().nth(q_open).unwrap();
+                    let rest = &line[q_open + 1..];
+                    if let Some(q_end) = rest.find(quote_char) {
+                        let v = &rest[..q_end];
+                        if !v.is_empty() {
+                            return Some(SmolStr::new(v));
+                        }
+                    }
+                }
+            }
+            None
+        }
+
+        VersionStrategy::LinePrefixUnquoted(prefix) => {
+            for line in content.lines() {
+                let line = line.trim_start();
                 if !line.starts_with(prefix) {
                     continue;
                 }
@@ -478,6 +516,56 @@ fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> 
             let end = rest.find(close)?;
             let v = rest[..end].trim();
             (!v.is_empty()).then(|| SmolStr::new(v))
+        }
+
+        VersionStrategy::CMakeVersion => {
+            let project_idx = content.find("project(").or_else(|| content.find("project ("))?;
+            let rest = &content[project_idx..];
+            let end_idx = rest.find(')')?;
+            let project_decl = &rest[..end_idx];
+            let version_idx = project_decl.find("VERSION")?;
+            let mut parts = project_decl[version_idx + "VERSION".len()..].split_whitespace();
+            let v = parts.next()?;
+            Some(SmolStr::new(v))
+        }
+
+        VersionStrategy::MSBuildVersion => {
+            for tag in &["<Version>", "<PackageVersion>"] {
+                if let Some(start) = content.find(tag) {
+                    let start = start + tag.len();
+                    let rest = &content[start..];
+                    if let Some(end) = rest.find('<') {
+                        let v = rest[..end].trim();
+                        if !v.is_empty() {
+                            return Some(SmolStr::new(v));
+                        }
+                    }
+                }
+            }
+            None
+        }
+
+        VersionStrategy::RubyGemspec => {
+            for line in content.lines() {
+                let line = line.trim_start();
+                if let Some(idx) = line.find(".version") {
+                    let rest = line[idx + ".version".len()..].trim_start();
+                    if rest.starts_with('=') {
+                        let rest = rest[1..].trim_start();
+                        if let Some(q_open) = rest.find(|c| c == '"' || c == '\'') {
+                            let quote_char = rest.chars().nth(q_open).unwrap();
+                            let rest = &rest[q_open + 1..];
+                            if let Some(q_end) = rest.find(quote_char) {
+                                let v = &rest[..q_end];
+                                if !v.is_empty() {
+                                    return Some(SmolStr::new(v));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            None
         }
     }
 }
