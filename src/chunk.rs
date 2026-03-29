@@ -3,9 +3,10 @@ use std::fmt::Display;
 use owo_colors::style;
 use owo_colors::Style;
 use owo_colors::Styled;
+use smol_str::SmolStr;
 
 pub struct Chunk<T> {
-    icon: Option<Styled<&'static str>>,
+    icon: Option<Styled<SmolStr>>,
     info: Option<Styled<T>>,
 }
 
@@ -39,16 +40,16 @@ where
 }
 
 impl<T: Default> Chunk<T> {
-    pub fn new(icon: &'static str, info: T) -> Self {
+    pub fn new(icon: impl Into<SmolStr>, info: T) -> Self {
         Self {
-            icon: Some(style().style(icon)),
+            icon: Some(style().style(icon.into())),
             info: Some(style().style(info)),
         }
     }
 
-    pub fn icon(icon: &'static str) -> Self {
+    pub fn icon(icon: impl Into<SmolStr>) -> Self {
         Self {
-            icon: Some(style().style(icon)),
+            icon: Some(style().style(icon.into())),
             info: None,
         }
     }
