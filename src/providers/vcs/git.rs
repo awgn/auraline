@@ -165,7 +165,7 @@ impl FromStr for StatusIcon<Git> {
 }
 
 async fn git_describe_cmd(_opts: &Options) -> Option<SmolStr> {
-    git!("describe", "--abbrev=7", "--always", "--tag", "--long")
+    git!("describe", "--abbrev=8", "--always", "--tag", "--long")
         .await
         .map(|s| {
             let output = s.trim().split('-').collect::<SmallVec<[_; 4]>>();
@@ -174,8 +174,8 @@ async fn git_describe_cmd(_opts: &Options) -> Option<SmolStr> {
                 [tag] => tag.to_smolstr(),
                 [tag, "0"] => tag.to_smolstr(),
                 [tag, n] => format_smolstr!("{tag}▴{n}"),
-                [tag, "0", hash] => format_smolstr!("{tag}|{hash}"),
-                [tag, n, hash, ..] => format_smolstr!("{tag}▴{n}|{hash}"),
+                [tag, "0", hash] => format_smolstr!("{tag}∷{}", &hash[1..]),
+                [tag, n, hash, ..] => format_smolstr!("{tag}▴{n}∷{}", &hash[1..]),
             }
         })
 }
