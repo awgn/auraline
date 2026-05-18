@@ -40,17 +40,17 @@ static VIRTUALIZATION_MAP: phf::Map<&'static str, VirtualizationInfo> = phf_map!
     // Containers / OS-Level Virtualization
     // ===================================================================
 
-    "systemd-nspawn" => VirtualizationInfo { icon: "", color: "#EE0000", cterm_color: "196", name: "systemd-nspawn" },
-    "lxc-libvirt" => VirtualizationInfo { icon: "", color: "#F7931E", cterm_color: "208", name: "LXC (libvirt)" },
-    "lxc" => VirtualizationInfo { icon: "", color: "#F7931E", cterm_color: "208", name: "LXC" },
-    "openvz" => VirtualizationInfo { icon: "", color: "#00AEEF", cterm_color: "39", name: "OpenVZ" },
+    "systemd-nspawn" => VirtualizationInfo { icon: "", color: "#EE0000", cterm_color: "196", name: "systemd-nspawn" },
+    "lxc-libvirt" => VirtualizationInfo { icon: "", color: "#F7931E", cterm_color: "208", name: "LXC (libvirt)" },
+    "lxc" => VirtualizationInfo { icon: "", color: "#F7931E", cterm_color: "208", name: "LXC" },
+    "openvz" => VirtualizationInfo { icon: "", color: "#00AEEF", cterm_color: "39", name: "OpenVZ" },
     "docker" => VirtualizationInfo { icon: "", color: "#2496ED", cterm_color: "39", name: "Docker" },
-    "podman" => VirtualizationInfo { icon: "", color: "#892CA0", cterm_color: "98", name: "Podman" },
-    "rkt" => VirtualizationInfo { icon: "", color: "#AC1A00", cterm_color: "124", name: "rkt" },
+    "podman" => VirtualizationInfo { icon: "", color: "#892CA0", cterm_color: "98", name: "Podman" },
+    "rkt" => VirtualizationInfo { icon: "", color: "#AC1A00", cterm_color: "124", name: "rkt" },
     "wsl" => VirtualizationInfo { icon: "", color: "#00A4EF", cterm_color: "39", name: "WSL" },
-    "proot" => VirtualizationInfo { icon: "", color: "#A0A0A0", cterm_color: "247", name: "proot" },
-    "pouch" => VirtualizationInfo { icon: "", color: "#E67924", cterm_color: "208", name: "PouchContainer" },
-    "container-other" => VirtualizationInfo { icon: "", color: "#A0A0A0", cterm_color: "247", name: "Unknown Container" },
+    "proot" => VirtualizationInfo { icon: "", color: "#A0A0A0", cterm_color: "247", name: "proot" },
+    "pouch" => VirtualizationInfo { icon: "", color: "#E67924", cterm_color: "208", name: "PouchContainer" },
+    "container-other" => VirtualizationInfo { icon: "", color: "#A0A0A0", cterm_color: "247", name: "Unknown Container" },
 };
 
 pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
