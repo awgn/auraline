@@ -3,7 +3,7 @@ use crate::providers::vcs::{merge_icons, StatusIcon, VcsTrait};
 use crate::style::to_superscript;
 use crate::{cmd::CMD, options::Options};
 use smallvec::SmallVec;
-use smol_str::{format_smolstr, SmolStr, StrExt, ToSmolStr};
+use smol_str::{format_smolstr, SmolStr, ToSmolStr};
 use std::convert::Infallible;
 use std::env;
 use std::path::Path;
@@ -21,8 +21,7 @@ pub struct Git;
 
 impl VcsTrait for Git {
     async fn branch(&self, opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        let icon = git_branch_icon(opts).await;
-        let info = git_branch_name(opts).await;
+        let (icon, info) = join!(git_branch_icon(opts), git_branch_name(opts));
         match (icon, info) {
             (None, None) => None,
             (Some(icon), None) => Some(Chunk::icon(icon)),
@@ -32,18 +31,23 @@ impl VcsTrait for Git {
     }
 
     async fn commit(&self, opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        let (name_rev, branch_name, descr) = join!(
-            git_name_rev(opts),
-            git_branch_name(opts),
-            git_describe_cmd(opts)
-        );
+        // git describe --always succeeds on any non-empty repo, so run it
+        // together with branch_name (already cached) and skip git_name_rev
+        // entirely in the common case — it is only needed as a fallback when
+        // describe itself fails (e.g. a brand-new empty repo).
+        let (branch_name, descr) = join!(git_branch_name(opts), git_describe_cmd(opts));
 
-        match (branch_name, descr, name_rev) {
-            (_, None, None) => None,
-            (None, None, Some(nr)) => Some(Chunk::info(nr)),
-            (Some(b), None, Some(nr)) if git_bidirectional_inclusion(&b, &nr) => None,
-            (Some(_), None, Some(nr)) => Some(Chunk::info(nr)),
-            (_, Some(c), _) => Some(Chunk::info(c)),
+        if let Some(c) = descr {
+            return Some(Chunk::info(c));
+        }
+
+        // Fallback: describe failed, try name-rev
+        let name_rev = git_name_rev(opts).await;
+        match (branch_name, name_rev) {
+            (_, None) => None,
+            (None, Some(nr)) => Some(Chunk::info(nr)),
+            (Some(b), Some(nr)) if git_bidirectional_inclusion(&b, &nr) => None,
+            (Some(_), Some(nr)) => Some(Chunk::info(nr)),
         }
     }
 
@@ -108,55 +112,58 @@ impl VcsTrait for Git {
 impl FromStr for StatusIcon<Git> {
     type Err = Infallible;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut chars = s.chars();
-        match (chars.next(), chars.next()) {
+        let bytes = s.as_bytes();
+        if bytes.len() < 2 {
+            return Ok(StatusIcon::new(""));
+        }
+        match (bytes[0], bytes[1]) {
             // Unmerged states (conflicts)
-            (Some('D'), Some('D')) => Ok(StatusIcon::new("✖")), // Both deleted
-            (Some('A'), Some('A')) => Ok(StatusIcon::new("⧉")), // Both added
-            (Some('U'), Some('U')) => Ok(StatusIcon::new("⚠")), // Both modified - warning
-            (Some('A'), Some('U')) => Ok(StatusIcon::new("⊕")), // Added by us
-            (Some('U'), Some('A')) => Ok(StatusIcon::new("⊞")), // Added by them
-            (Some('D'), Some('U')) => Ok(StatusIcon::new("⊖")), // Deleted by us
-            (Some('U'), Some('D')) => Ok(StatusIcon::new("⊟")), // Deleted by them
+            (b'D', b'D') => Ok(StatusIcon::new("✖")), // Both deleted
+            (b'A', b'A') => Ok(StatusIcon::new("⧉")), // Both added
+            (b'U', b'U') => Ok(StatusIcon::new("⚠")), // Both modified - warning
+            (b'A', b'U') => Ok(StatusIcon::new("⊕")), // Added by us
+            (b'U', b'A') => Ok(StatusIcon::new("⊞")), // Added by them
+            (b'D', b'U') => Ok(StatusIcon::new("⊖")), // Deleted by us
+            (b'U', b'D') => Ok(StatusIcon::new("⊟")), // Deleted by them
 
             // Index changes
-            (Some('M'), Some(' ')) => Ok(StatusIcon::new("●")), // Modified in index only
-            (Some('M'), Some('M')) => Ok(StatusIcon::new("◉")), // Modified in both
-            (Some('M'), Some('D')) => Ok(StatusIcon::new("◐")), // Modified in index, deleted in worktree
-            (Some('M'), Some('T')) => Ok(StatusIcon::new("◑")), // Modified in index, type changed in worktree
+            (b'M', b' ') => Ok(StatusIcon::new("●")), // Modified in index only
+            (b'M', b'M') => Ok(StatusIcon::new("◉")), // Modified in both
+            (b'M', b'D') => Ok(StatusIcon::new("◐")), // Modified in index, deleted in worktree
+            (b'M', b'T') => Ok(StatusIcon::new("◑")), // Modified in index, type changed in worktree
 
-            (Some('A'), Some(' ')) => Ok(StatusIcon::new("✚")), // Added to index only
-            (Some('A'), Some('M')) => Ok(StatusIcon::new("✛")), // Added and modified
-            (Some('A'), Some('D')) => Ok(StatusIcon::new("⊕")), // Added then deleted in worktree
-            (Some('A'), Some('T')) => Ok(StatusIcon::new("⊛")), // Added, type changed in worktree
+            (b'A', b' ') => Ok(StatusIcon::new("✚")), // Added to index only
+            (b'A', b'M') => Ok(StatusIcon::new("✛")), // Added and modified
+            (b'A', b'D') => Ok(StatusIcon::new("⊕")), // Added then deleted in worktree
+            (b'A', b'T') => Ok(StatusIcon::new("⊛")), // Added, type changed in worktree
 
-            (Some('D'), Some(' ')) => Ok(StatusIcon::new("−")), // Deleted from index
-            (Some('D'), Some('M')) => Ok(StatusIcon::new("∓")), // Deleted in index but modified in worktree (weird state)
+            (b'D', b' ') => Ok(StatusIcon::new("−")), // Deleted from index
+            (b'D', b'M') => Ok(StatusIcon::new("∓")), // Deleted in index but modified in worktree (weird state)
 
-            (Some('R'), Some(' ')) => Ok(StatusIcon::new("→")), // Renamed in index
-            (Some('R'), Some('M')) => Ok(StatusIcon::new("⇢")), // Renamed and modified
-            (Some('R'), Some('D')) => Ok(StatusIcon::new("⇥")), // Renamed then deleted
-            (Some('R'), Some('T')) => Ok(StatusIcon::new("⤳")), // Renamed and type changed
+            (b'R', b' ') => Ok(StatusIcon::new("→")), // Renamed in index
+            (b'R', b'M') => Ok(StatusIcon::new("⇢")), // Renamed and modified
+            (b'R', b'D') => Ok(StatusIcon::new("⇥")), // Renamed then deleted
+            (b'R', b'T') => Ok(StatusIcon::new("⤳")), // Renamed and type changed
 
-            (Some('C'), Some(' ')) => Ok(StatusIcon::new("⊂")), // Copied in index
-            (Some('C'), Some('M')) => Ok(StatusIcon::new("⊃")), // Copied and modified
-            (Some('C'), Some('D')) => Ok(StatusIcon::new("⊄")), // Copied then deleted
-            (Some('C'), Some('T')) => Ok(StatusIcon::new("⊅")), // Copied and type changed
+            (b'C', b' ') => Ok(StatusIcon::new("⊂")), // Copied in index
+            (b'C', b'M') => Ok(StatusIcon::new("⊃")), // Copied and modified
+            (b'C', b'D') => Ok(StatusIcon::new("⊄")), // Copied then deleted
+            (b'C', b'T') => Ok(StatusIcon::new("⊅")), // Copied and type changed
 
-            (Some('T'), Some(' ')) => Ok(StatusIcon::new("◈")), // Type changed in index
-            (Some('T'), Some('M')) => Ok(StatusIcon::new("◊")), // Type changed and modified
-            (Some('T'), Some('D')) => Ok(StatusIcon::new("⬧")), // Type changed then deleted
-            (Some('T'), Some('T')) => Ok(StatusIcon::new("⬢")), // Type changed in both
+            (b'T', b' ') => Ok(StatusIcon::new("◈")), // Type changed in index
+            (b'T', b'M') => Ok(StatusIcon::new("◊")), // Type changed and modified
+            (b'T', b'D') => Ok(StatusIcon::new("⬧")), // Type changed then deleted
+            (b'T', b'T') => Ok(StatusIcon::new("⬢")), // Type changed in both
 
-            (Some(' '), Some('M')) => Ok(StatusIcon::new("○")), // Modified in worktree only
-            (Some(' '), Some('D')) => Ok(StatusIcon::new("ｘ")), // Deleted in worktree only
-            (Some(' '), Some('T')) => Ok(StatusIcon::new("◇")), // Type changed in worktree only
-            (Some(' '), Some('R')) => Ok(StatusIcon::new("↻")), // Renamed in worktree
-            (Some(' '), Some('C')) => Ok(StatusIcon::new("⊆")), // Copied in worktree
-            (Some(' '), Some('A')) => Ok(StatusIcon::new("⊹")), // Unchanged in index, added in worktree
+            (b' ', b'M') => Ok(StatusIcon::new("○")), // Modified in worktree only
+            (b' ', b'D') => Ok(StatusIcon::new("ｘ")), // Deleted in worktree only
+            (b' ', b'T') => Ok(StatusIcon::new("◇")), // Type changed in worktree only
+            (b' ', b'R') => Ok(StatusIcon::new("↻")), // Renamed in worktree
+            (b' ', b'C') => Ok(StatusIcon::new("⊆")), // Copied in worktree
+            (b' ', b'A') => Ok(StatusIcon::new("⊹")), // Unchanged in index, added in worktree
 
-            (Some('?'), Some('?')) => Ok(StatusIcon::new("⁇")), // Untracked
-            (Some('!'), Some('!')) => Ok(StatusIcon::new("")),  // Ignored
+            (b'?', b'?') => Ok(StatusIcon::new("⁇")), // Untracked
+            (b'!', b'!') => Ok(StatusIcon::new("")),  // Ignored
 
             // Default fallback
             _ => Ok(StatusIcon::new("")), // Unknown state
@@ -192,16 +199,24 @@ async fn git_rev_parse(origin: bool) -> Option<SmolStr> {
 }
 
 async fn git_name_rev(_opts: &Options) -> Option<SmolStr> {
-    let mut result = git!("name-rev", "--name-only", "HEAD").await?;
-    for (o, n) in &[
-        ("remotes/origin/", "↪"),
-        ("remotes/", "↪"),
-        ("tags/", ""),
-        ("~", "↓"),
-    ] {
-        result = result.replace_smolstr(o, n);
+    let result = git!("name-rev", "--name-only", "HEAD").await?;
+    let s = result.as_str();
+
+    let prefix_replaced = if let Some(stripped) = s.strip_prefix("remotes/origin/") {
+        format_smolstr!("↪{}", stripped)
+    } else if let Some(stripped) = s.strip_prefix("remotes/") {
+        format_smolstr!("↪{}", stripped)
+    } else if let Some(stripped) = s.strip_prefix("tags/") {
+        stripped.to_smolstr()
+    } else {
+        result
+    };
+
+    if prefix_replaced.contains('~') {
+        Some(prefix_replaced.replace('~', "↓").into())
+    } else {
+        Some(prefix_replaced)
     }
-    Some(result)
 }
 
 #[inline]
@@ -222,8 +237,9 @@ async fn git_branch_icon(_: &Options) -> Option<&'static str> {
 
 #[inline]
 async fn git_branch_name(_: &Options) -> Option<SmolStr> {
-    git!("branch", "--show")
+    // Reuses the cached result of `git rev-parse --abbrev-ref HEAD` that
+    // git_branch_icon already requests — no extra subprocess needed.
+    git_rev_parse(false)
         .await
-        .filter(|s| !s.is_empty())
-        .map(|s| s.trim().to_smolstr())
+        .filter(|s| s != "HEAD" && !s.is_empty())
 }

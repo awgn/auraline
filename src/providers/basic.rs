@@ -28,7 +28,12 @@ pub async fn device_name(opts: &Options) -> Option<Chunk<String>> {
 #[inline]
 pub async fn user(opts: &Options) -> Option<Chunk<String>> {
     opts.user
-        .then(|| std::env::var("USER").ok().or_else(|| whoami::fallible::username().ok()).map(Chunk::info))
+        .then(|| {
+            std::env::var("USER")
+                .ok()
+                .or_else(|| whoami::fallible::username().ok())
+                .map(Chunk::info)
+        })
         .flatten()
 }
 
@@ -52,7 +57,7 @@ pub async fn pwd(opts: &Options) -> Option<Chunk<std::borrow::Cow<'static, str>>
         .map(std::path::PathBuf::from)
         .ok()
         .or_else(|| std::env::home_dir());
-        
+
     opts.pwd
         .then(|| {
             let current_dir = std::env::var("PWD")

@@ -80,7 +80,6 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
 
     let opts = Arc::new(opts);
     let cwd = env::current_dir()?;
-    let vcs = infer_vcs(cwd, &opts).await;
 
     let (color, bold, def) = (
         build_color_style(opts.theme.as_deref()),
@@ -88,7 +87,9 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
         Style::default(),
     );
 
-    let async_prompt = hlist![
+    // Phase 1: spawn all non-VCS tasks immediately — they will run while
+    // infer_vcs walks the filesystem in the next step.
+    let pre_vcs = hlist![
         item![user, opts, (color, bold)],
         item![realname, opts, (color, bold)],
         item![hostname, opts, (color, bold.dimmed())],
@@ -104,6 +105,14 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
         item![netif_show, opts, (bold.dimmed(), def.dimmed())],
         item![net_namespace, opts, (bold, bold)],
         item![manifest_show, opts, (color, color.dimmed())],
+    ];
+
+    // Phase 2: detect VCS — overlaps with pre_vcs tasks already running.
+    let vcs = infer_vcs(cwd, &opts).await;
+
+    // Phase 3: spawn VCS tasks (now that we have the result) and the two
+    // trailing non-VCS tasks that must appear after VCS in the output.
+    let vcs_tasks = hlist![
         item_vcs![vcs, <Vcs as VcsTrait>::branch, opts, (bold, color.bold())],
         item_vcs![vcs, <Vcs as VcsTrait>::status, opts, (bold, color)],
         item_vcs![vcs, <Vcs as VcsTrait>::stash, opts, (bold, def)],
@@ -115,17 +124,24 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
         ],
         item_vcs![vcs, <Vcs as VcsTrait>::commit, opts, (bold, bold)],
         item_vcs![vcs, <Vcs as VcsTrait>::divergence, opts, (bold, def)],
+    ];
+    let post_vcs = hlist![
         item![duration_show, opts, (def, def.dimmed())],
         item![exit_code_show, opts, (bold.red(), bold)],
     ];
 
-    let prompt = async_prompt.hjoin().await;
+    // Join all three groups concurrently, preserving output order.
+    let (pre, vcs_res, post) = tokio::join!(pre_vcs.hjoin(), vcs_tasks.hjoin(), post_vcs.hjoin());
 
     if let Some(start) = start {
-        prompt.map(Poly(TimingMapper));
+        pre.map(Poly(TimingMapper));
+        vcs_res.map(Poly(TimingMapper));
+        post.map(Poly(TimingMapper));
         println!("{:<40} -> {:>15?}", "total time", start.elapsed());
     } else {
-        prompt.map(Poly(PrintMapper));
+        pre.map(Poly(PrintMapper));
+        vcs_res.map(Poly(PrintMapper));
+        post.map(Poly(PrintMapper));
     }
 
     Ok(())

@@ -68,19 +68,27 @@ pub async fn infer_vcs(start: PathBuf, opts: &Options) -> Option<(Vcs, PathBuf)>
 
     let mut dir = start.canonicalize().ok()?;
     loop {
-        if fs::metadata(dir.join(".jj")).await.is_ok() {
+        let (jj, git, hg, pijul, darcs) = tokio::join!(
+            fs::metadata(dir.join(".jj")),
+            fs::metadata(dir.join(".git")),
+            fs::metadata(dir.join(".hg")),
+            fs::metadata(dir.join(".pijul")),
+            fs::metadata(dir.join("_darcs")),
+        );
+
+        if jj.is_ok() {
             return Some((Vcs::Jj(Jj), dir));
         }
-        if fs::metadata(dir.join(".git")).await.is_ok() {
+        if git.is_ok() {
             return Some((Vcs::Git(Git), dir));
         }
-        if fs::metadata(dir.join(".hg")).await.is_ok() {
+        if hg.is_ok() {
             return Some((Vcs::Hg(Hg), dir));
         }
-        if fs::metadata(dir.join(".pijul")).await.is_ok() {
+        if pijul.is_ok() {
             return Some((Vcs::Pijul(Pijul), dir));
         }
-        if fs::metadata(dir.join("_darcs")).await.is_ok() {
+        if darcs.is_ok() {
             return Some((Vcs::Darcs(Darcs), dir));
         }
 

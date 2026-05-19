@@ -519,7 +519,9 @@ fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> 
         }
 
         VersionStrategy::CMakeVersion => {
-            let project_idx = content.find("project(").or_else(|| content.find("project ("))?;
+            let project_idx = content
+                .find("project(")
+                .or_else(|| content.find("project ("))?;
             let rest = &content[project_idx..];
             let end_idx = rest.find(')')?;
             let project_decl = &rest[..end_idx];
