@@ -28,7 +28,7 @@ pub async fn device_name(opts: &Options) -> Option<Chunk<String>> {
 #[inline]
 pub async fn user(opts: &Options) -> Option<Chunk<String>> {
     opts.user
-        .then(|| whoami::fallible::username().ok().map(Chunk::info))
+        .then(|| std::env::var("USER").ok().or_else(|| whoami::fallible::username().ok()).map(Chunk::info))
         .flatten()
 }
 
@@ -48,10 +48,19 @@ pub async fn distro(opts: &Options) -> Option<Chunk<String>> {
 
 #[inline]
 pub async fn pwd(opts: &Options) -> Option<Chunk<std::borrow::Cow<'static, str>>> {
-    let home = std::env::home_dir();
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .ok()
+        .or_else(|| std::env::home_dir());
+        
     opts.pwd
         .then(|| {
-            std::env::current_dir().ok().map(|p| {
+            let current_dir = std::env::var("PWD")
+                .map(std::path::PathBuf::from)
+                .ok()
+                .or_else(|| std::env::current_dir().ok());
+
+            current_dir.map(|p| {
                 let pwd = if let Some(home) = &home {
                     if let Ok(stripped) = p.strip_prefix(home) {
                         if stripped.as_os_str().is_empty() {
@@ -80,9 +89,14 @@ pub async fn pwd(opts: &Options) -> Option<Chunk<std::borrow::Cow<'static, str>>
 pub async fn full_pwd(opts: &Options) -> Option<Chunk<String>> {
     opts.full_pwd
         .then(|| {
-            std::env::current_dir()
+            std::env::var("PWD")
                 .ok()
-                .map(|pwd| Chunk::info(pwd.to_string_lossy().into_owned()))
+                .or_else(|| {
+                    std::env::current_dir()
+                        .ok()
+                        .map(|pwd| pwd.to_string_lossy().into_owned())
+                })
+                .map(Chunk::info)
         })
         .flatten()
 }
