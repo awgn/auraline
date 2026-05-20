@@ -391,7 +391,7 @@ enum VersionStrategy {
 /// Map a `Language` (with an optional key for disambiguation) to the appropriate
 /// extraction strategy.  Returns `None` for manifests that carry no self-declared
 /// version (go.mod, stack.yaml, Gemfile, Pipfile, …).
-fn version_strategy(lang: Language, key: &str) -> Option<VersionStrategy> {
+fn project_version_strategy(lang: Language, key: &str) -> Option<VersionStrategy> {
     use Language::*;
     match (lang, key) {
         (Rust, _) | (Julia, _) | (Nim, _) => Some(VersionStrategy::LinePrefixQuoted("version")),
@@ -430,11 +430,11 @@ fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> 
         VersionStrategy::KeyValueQuoted(key, sep) => {
             for line in content.lines() {
                 let line = line.trim_start();
-                if line.starts_with(key) {
-                    let rest = line[key.len()..].trim_start();
-                    if rest.starts_with(sep) {
-                        let rest = rest[sep.len()..].trim_start();
-                        if let Some(q_open) = rest.find(|c| c == '"' || c == '\'') {
+                if let Some(rest) = line.strip_prefix(key) {
+                    let rest = rest.trim_start();
+                    if let Some(rest) = rest.strip_prefix(sep) {
+                        let rest = rest.trim_start();
+                        if let Some(q_open) = rest.find(['"', '\'']) {
                             let quote_char = rest.chars().nth(q_open).unwrap();
                             let rest = &rest[q_open + 1..];
                             if let Some(q_end) = rest.find(quote_char) {
@@ -453,10 +453,10 @@ fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> 
         VersionStrategy::KeyValueUnquoted(key, sep) => {
             for line in content.lines() {
                 let line = line.trim_start();
-                if line.starts_with(key) {
-                    let rest = line[key.len()..].trim_start();
-                    if rest.starts_with(sep) {
-                        let rest = rest[sep.len()..].trim_start();
+                if let Some(rest) = line.strip_prefix(key) {
+                    let rest = rest.trim_start();
+                    if let Some(rest) = rest.strip_prefix(sep) {
+                        let rest = rest.trim_start();
                         let end = rest
                             .find(|c: char| c.is_whitespace() || c == ')' || c == '#')
                             .unwrap_or(rest.len());
@@ -477,7 +477,7 @@ fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> 
                     continue;
                 }
                 // Find the first quoted string on this line.
-                if let Some(q_open) = line.find(|c| c == '"' || c == '\'') {
+                if let Some(q_open) = line.find(['"', '\'']) {
                     let quote_char = line.chars().nth(q_open).unwrap();
                     let rest = &line[q_open + 1..];
                     if let Some(q_end) = rest.find(quote_char) {
@@ -552,9 +552,9 @@ fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> 
                 let line = line.trim_start();
                 if let Some(idx) = line.find(".version") {
                     let rest = line[idx + ".version".len()..].trim_start();
-                    if rest.starts_with('=') {
-                        let rest = rest[1..].trim_start();
-                        if let Some(q_open) = rest.find(|c| c == '"' || c == '\'') {
+                    if let Some(rest) = rest.strip_prefix('=') {
+                        let rest = rest.trim_start();
+                        if let Some(q_open) = rest.find(['"', '\'']) {
                             let quote_char = rest.chars().nth(q_open).unwrap();
                             let rest = &rest[q_open + 1..];
                             if let Some(q_end) = rest.find(quote_char) {
@@ -575,9 +575,183 @@ fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> 
 /// Read `path` from disk and attempt to extract the version using the strategy
 /// determined by the `Language` and the lookup `key`.
 async fn version_from_file(path: &std::path::Path, lang: Language, key: &str) -> Option<SmolStr> {
-    let strategy = version_strategy(lang, key)?;
+    let strategy = project_version_strategy(lang, key)?;
     let content = tokio::fs::read_to_string(path).await.ok()?;
     extract_version(strategy, &content)
+}
+
+const CACHE_TTL_SECS: u64 = 10; // 10 seconds
+
+fn get_cache_path() -> std::path::PathBuf {
+    let username = whoami::fallible::username().unwrap_or_else(|_| "default".to_string());
+    std::env::temp_dir().join(format!("auraline-manifest-cache-{}.txt", username))
+}
+
+fn read_cached_version(lang: Language) -> Option<SmolStr> {
+    let cache_path = get_cache_path();
+    let content = std::fs::read_to_string(&cache_path).ok()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+
+    let lang_name = format!("{:?}", lang);
+
+    for line in content.lines() {
+        let mut parts = line.splitn(3, ':');
+        let name = parts.next()?;
+        let version = parts.next()?;
+        let timestamp_str = parts.next()?;
+        if name == lang_name {
+            let timestamp: u64 = timestamp_str.parse().ok()?;
+            if now >= timestamp && now - timestamp < CACHE_TTL_SECS {
+                return Some(SmolStr::new(version));
+            }
+        }
+    }
+    None
+}
+
+fn write_cached_version(lang: Language, version: &str) -> Option<()> {
+    let cache_path = get_cache_path();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+
+    let lang_name = format!("{:?}", lang);
+    let mut lines = Vec::new();
+
+    if let Ok(content) = std::fs::read_to_string(&cache_path) {
+        for line in content.lines() {
+            let mut parts = line.splitn(3, ':');
+            if let Some(name) = parts.next() {
+                if name != lang_name {
+                    lines.push(line.to_string());
+                }
+            }
+        }
+    }
+
+    lines.push(format!("{}:{}:{}", lang_name, version, now));
+
+    let temp_path = cache_path.with_extension("tmp");
+    std::fs::write(&temp_path, lines.join("\n")).ok()?;
+    std::fs::rename(&temp_path, &cache_path).ok()?;
+
+    Some(())
+}
+
+async fn build_system_version(lang: Language) -> Option<SmolStr> {
+    if let Some(cached) = read_cached_version(lang) {
+        return Some(cached);
+    }
+
+    let version = build_system_version_uncached(lang).await?;
+    write_cached_version(lang, &version);
+    Some(version)
+}
+
+async fn build_system_version_uncached(lang: Language) -> Option<SmolStr> {
+    use crate::cmd::CMD;
+    match lang {
+        Language::Rust => {
+            let out = CMD.exec("rustc", ["--version"]).await?;
+            let v = out.split_whitespace().nth(1)?;
+            Some(SmolStr::new(v))
+        }
+        Language::Go => {
+            let out = CMD.exec("go", ["version"]).await?;
+            let v = out.split_whitespace().nth(2)?;
+            Some(SmolStr::new(v.strip_prefix("go").unwrap_or(v)))
+        }
+        Language::Python => {
+            let out = CMD.exec("python", ["--version"]).await?;
+            let v = out.split_whitespace().nth(1)?;
+            Some(SmolStr::new(v))
+        }
+        Language::JavaScript | Language::TypeScript => {
+            let out = CMD.exec("node", ["--version"]).await?;
+            Some(SmolStr::new(out.strip_prefix('v').unwrap_or(&out)))
+        }
+        Language::Java => {
+            let out = CMD.exec("javac", ["--version"]).await?;
+            let v = out.split_whitespace().nth(1)?;
+            Some(SmolStr::new(v))
+        }
+        Language::Ruby => {
+            let out = CMD.exec("ruby", ["--version"]).await?;
+            let v = out.split_whitespace().nth(1)?;
+            Some(SmolStr::new(v))
+        }
+        Language::Php => {
+            let out = CMD.exec("php", ["--version"]).await?;
+            let v = out.split_whitespace().nth(1)?;
+            Some(SmolStr::new(v))
+        }
+        Language::Dart => {
+            let out = CMD.exec("dart", ["--version"]).await?;
+            let v = out.split_whitespace().nth(3)?;
+            Some(SmolStr::new(v))
+        }
+        Language::Julia => {
+            let out = CMD.exec("julia", ["--version"]).await?;
+            let v = out.split_whitespace().nth(2)?;
+            Some(SmolStr::new(v))
+        }
+        Language::Zig => {
+            let out = CMD.exec("zig", ["version"]).await?;
+            Some(out)
+        }
+        Language::Nim => {
+            let out = CMD.exec("nim", ["--version"]).await?;
+            let v = out.split_whitespace().nth(3)?;
+            Some(SmolStr::new(v))
+        }
+        Language::Elixir => {
+            let out = CMD.exec("elixir", ["--version"]).await?;
+            let v = out.split_whitespace().last()?;
+            Some(SmolStr::new(v))
+        }
+        Language::CSharp | Language::FSharp => {
+            let out = CMD.exec("dotnet", ["--version"]).await?;
+            Some(SmolStr::new(out))
+        }
+        Language::CCpp => {
+            let out = CMD.exec("cmake", ["--version"]).await?;
+            let v = out.split_whitespace().nth(2)?;
+            Some(SmolStr::new(v))
+        }
+        Language::Haskell => {
+            let out = CMD.exec("ghc", ["--numeric-version"]).await?;
+            Some(SmolStr::new(out))
+        }
+        Language::OCaml => {
+            let out = CMD.exec("ocamlc", ["--version"]).await?;
+            Some(SmolStr::new(out))
+        }
+        Language::Kotlin => {
+            let out = CMD.exec("kotlin", ["-version"]).await?;
+            let v = out.split_whitespace().nth(2)?;
+            Some(SmolStr::new(v.strip_suffix("-jre").unwrap_or(v)))
+        }
+        Language::Scala => {
+            let out = CMD.exec("scala", ["-version"]).await?;
+            let v = out.split_whitespace().nth(4)?;
+            Some(SmolStr::new(v))
+        }
+        Language::Lua => {
+            let out = CMD.exec("lua", ["-v"]).await?;
+            let v = out.split_whitespace().nth(1)?;
+            Some(SmolStr::new(v))
+        }
+        Language::D => {
+            let out = CMD.exec("dmd", ["--version"]).await?;
+            let v = out.split_whitespace().nth(3)?;
+            Some(SmolStr::new(v))
+        }
+        _ => None,
+    }
 }
 
 pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
@@ -642,24 +816,34 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     let icons = builder.finish();
 
     // Attempt version extraction only when the top tier is ProjectManifest.
-    // Try each collected manifest in filesystem order; stop at the first that
-    // yields a non-None version (version_from_file returns None immediately for
-    // manifests with no strategy, so we avoid unnecessary file reads).
-    let version = if top_kind == MatchKind::ProjectManifest {
-        let mut found = None;
-        for (path, lang, key) in &manifests {
-            if let Some(v) = version_from_file(path, *lang, key).await {
-                found = Some(v);
-                break;
+    let version = if top_kind == MatchKind::ProjectManifest && !manifests.is_empty() {
+        let primary_lang = manifests[0].1;
+
+        // Run the tool version command and the file version extraction in parallel
+        let tool_version_fut = build_system_version(primary_lang);
+        let found_fut = async {
+            for (path, lang, key) in &manifests {
+                if let Some(v) = version_from_file(path, *lang, key).await {
+                    return Some(v);
+                }
             }
+            None
+        };
+
+        let (tool_version, found) = tokio::join!(tool_version_fut, found_fut);
+
+        match (tool_version, found) {
+            (Some(tv), Some(pv)) => Some(format_smolstr!("{} ↦ v{}", tv, pv)),
+            (Some(tv), None) => Some(tv),
+            (None, Some(pv)) => Some(format_smolstr!("v{}", pv)),
+            (None, None) => None,
         }
-        found
     } else {
         None
     };
 
     Some(match version {
-        Some(v) => Chunk::new(icons, format_smolstr!("v{v}")),
+        Some(ver) => Chunk::new(icons, ver),
         None => Chunk::icon(icons),
     })
 }

@@ -56,7 +56,7 @@ pub async fn pwd(opts: &Options) -> Option<Chunk<std::borrow::Cow<'static, str>>
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .ok()
-        .or_else(|| std::env::home_dir());
+        .or_else(std::env::home_dir);
 
     opts.pwd
         .then(|| {

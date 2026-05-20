@@ -1,13 +1,14 @@
 use lazy_static::lazy_static;
-use parking_lot::Mutex;
 use smallvec::SmallVec;
 use smol_str::SmolStr;
-use std::{collections::HashMap, ffi::OsStr, path::Path, sync::Arc};
+use std::{ffi::OsStr, path::Path, sync::Arc};
 use tokio::process::Command;
 use tokio::sync::OnceCell;
+use papaya::HashMap;
 
 lazy_static! {
     pub static ref CMD: CmdCache = CmdCache::new();
+    static ref PATH_CACHE: HashMap<&'static str, bool> = HashMap::new();
 }
 
 #[derive(Debug, Clone)]
@@ -17,27 +18,30 @@ struct CmdOutput(Arc<OnceCell<Option<SmolStr>>>);
 struct CmdKey(&'static str, SmallVec<[SmolStr; 4]>);
 
 pub struct CmdCache {
-    cache: Mutex<HashMap<CmdKey, CmdOutput>>,
+    cache: HashMap<CmdKey, CmdOutput>,
 }
 
 /// Checks whether `cmd` resolves to an executable file via `PATH`.
 /// Entirely synchronous and allocation-light; the result is cached by the
 /// caller so this runs at most once per unique command name.
-fn cmd_in_path(cmd: &str) -> bool {
-    // Absolute / relative path — just stat it directly.
-    if cmd.contains(std::path::MAIN_SEPARATOR) {
-        return Path::new(cmd).is_file();
-    }
-
-    std::env::var_os("PATH")
-        .map(|path_var| std::env::split_paths(&path_var).any(|dir| dir.join(cmd).is_file()))
-        .unwrap_or(false)
+fn cmd_in_path(cmd: &'static str) -> bool {
+    let pinned = PATH_CACHE.pin();
+    *pinned.get_or_insert_with(cmd, || {
+        // Absolute / relative path — just stat it directly.
+        if cmd.contains(std::path::MAIN_SEPARATOR) {
+            Path::new(cmd).is_file()
+        } else {
+            std::env::var_os("PATH")
+                .map(|path_var| std::env::split_paths(&path_var).any(|dir| dir.join(cmd).is_file()))
+                .unwrap_or(false)
+        }
+    })
 }
 
 impl CmdCache {
     fn new() -> Self {
         Self {
-            cache: Mutex::new(HashMap::new()),
+            cache: HashMap::new(),
         }
     }
 
@@ -61,10 +65,9 @@ impl CmdCache {
     {
         let key = Self::make_key(cmd, args.clone());
         let cell = {
-            let mut cache = self.cache.lock();
-            cache
-                .entry(key)
-                .or_insert_with(|| {
+            let pinned = self.cache.pin();
+            pinned
+                .get_or_insert_with(key, || {
                     let cell = Arc::new(OnceCell::new());
                     // If the binary doesn't exist in PATH pre-populate with None,
                     // so get_or_init returns immediately without forking.

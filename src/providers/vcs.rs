@@ -76,17 +76,17 @@ pub async fn infer_vcs(start: PathBuf, opts: &Options) -> Option<(Vcs, PathBuf)>
             fs::metadata(dir.join("_darcs")),
         );
 
-        if jj.is_ok() {
-            return Some((Vcs::Jj(Jj), dir));
-        }
         if git.is_ok() {
             return Some((Vcs::Git(Git), dir));
         }
-        if hg.is_ok() {
-            return Some((Vcs::Hg(Hg), dir));
-        }
         if pijul.is_ok() {
             return Some((Vcs::Pijul(Pijul), dir));
+        }
+        if jj.is_ok() {
+            return Some((Vcs::Jj(Jj), dir));
+        }
+        if hg.is_ok() {
+            return Some((Vcs::Hg(Hg), dir));
         }
         if darcs.is_ok() {
             return Some((Vcs::Darcs(Darcs), dir));
