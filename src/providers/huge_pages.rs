@@ -1,6 +1,6 @@
 use crate::{chunk::Chunk, options::Options};
 use smallvec::SmallVec;
-use smol_str::{format_smolstr, SmolStr, SmolStrBuilder};
+use smol_str::{format_smolstr, SmolStr};
 use std::path::Path;
 use tokio::fs;
 
@@ -8,19 +8,19 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     if !opts.huge_pages {
         return None;
     }
-    let mut builder = SmolStrBuilder::new();
     let huge_pages = get_hugepages_status().await;
     if let Some(huge_pages) = huge_pages {
-        for hp in huge_pages {
-            builder.push_str(
-                &hp.pages
-                    .iter()
-                    .map(|page| format_smolstr!("{}x{}", page.count, format_kb(page.size_kb)))
-                    .collect::<SmallVec<[_; 4]>>()
-                    .join(","),
-            );
-        }
-        Some(Chunk::new(opts.select_str("⎘", "󰽿"), builder.finish()))
+        let formatted = huge_pages
+            .iter()
+            .flat_map(|hp| &hp.pages)
+            .map(|page| format_smolstr!("{}x{}", page.count, format_kb(page.size_kb)))
+            .collect::<SmallVec<[SmolStr; 4]>>()
+            .join(",");
+
+        Some(Chunk::new(
+            opts.select_str("⎘", "\u{f0d7f}"),
+            SmolStr::new(formatted),
+        ))
     } else {
         None
     }
@@ -50,8 +50,7 @@ async fn process_hugepage_dir(path: &Path, node: Option<u32>) -> Option<HugePage
 
     // Read the directory content, continue only if successful.
     if let Ok(mut entries) = fs::read_dir(path).await {
-        let mut tmp = entries.next_entry().await.ok()?.into_iter();
-        for entry in &mut tmp {
+        while let Ok(Some(entry)) = entries.next_entry().await {
             let file_name = entry.file_name();
             let file_name_str = match file_name.to_str() {
                 Some(s) => s,
@@ -108,7 +107,7 @@ pub async fn get_hugepages_status() -> Option<SmallVec<[HugePage; 4]>> {
     if Path::new(NUMA_NODE_BASE_DIR).exists() {
         // NUMA system: iterate through node directories (e.g., node0, node1, ...).
         if let Ok(mut entries) = fs::read_dir(NUMA_NODE_BASE_DIR).await {
-            while let Some(entry) = entries.next_entry().await.ok()? {
+            while let Ok(Some(entry)) = entries.next_entry().await {
                 let file_name = entry.file_name();
                 let file_name_str = match file_name.to_str() {
                     Some(s) => s,
