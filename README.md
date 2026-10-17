@@ -4,35 +4,27 @@ auraline
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub repository](https://img.shields.io/badge/github-repo-blue.svg)](https://github.com/awgn/auraline)
 
-`auraline` is a utility that renders information into a string suitable to be embedded
-in the shell prompt. It is written in Rust.
+`auraline` is a fast, concurrent shell prompt generator written in Rust. It gathers system, environment, development, and VCS metadata asynchronously and renders a compact, single-line prompt string ready to be embedded in `bash` or `zsh`.
 
-Build
------
+Build & Install
+---------------
 
-To build the package run the following commands:
+To build and install `auraline` into your Cargo bin directory (`~/.cargo/bin/`):
 
 ```bash
 cargo install --path .
 ```
 
-This will build and install the binary `auraline` in the Cargo bin directory (e.g., `~/.cargo/bin/`).
+### Static Build
 
-Building auraline Statically
------------------------------
-
-To statically build auraline, you can use the following command:
+To build a self-contained static binary:
 
 ```bash
 RUSTFLAGS='-C target-feature=+crt-static' cargo build --release
-cargo install --path .
 ```
 
-This command will instruct Cargo to build auraline with static linking, which will create a static binary.
-The binary will include all necessary dependencies, making it more self-contained and easier to distribute.
-
-Help
-----
+Usage
+-----
 
 ```text
 Usage: auraline <COMMAND>
@@ -46,9 +38,9 @@ Options:
   -V, --version  Print version
 ```
 
-Prompt
-------
-The `prompt` command generates the prompt string that can be embedded in your shell prompt.
+### `auraline prompt`
+
+Generates the prompt string to embed in your shell prompt:
 
 ```text
 Usage: auraline prompt [OPTIONS]
@@ -71,122 +63,118 @@ Options:
   -m, --memory                 Show memory usage info
   -H, --huge-pages             Show HugePages info
   -M, --manifest               Show development package info in the current directory
-  -e, --duration               Show the duration of the last command)
+  -e, --duration               Show the duration of the last command
       --exit-code <EXIT_CODE>  Specify the exit-code of the last command to show
       --timings                Enable timings mode (dev)
       --theme <THEME>          Specify the theme color
       --nerd-font              Use Nerd Fonts
+      --profile <PROFILE>      Specify the prompt profile to use: minimal, lean, nerdy
 ```
 
-Integration and environment variables
--------------------------------------
-You can integrate `auraline` into your shell prompt by adding the command to your shell configuration file (e.g., `.bashrc`, `.zshrc`, etc.).
+Shell Integration & Environment Variables
+-----------------------------------------
 
-## Bash (~/.bash_profile)
-```
+Add the initialization snippet to your shell configuration file:
+
+### Bash (`~/.bash_profile` or `~/.bashrc`)
+
+```bash
 export AURALINE_PROFILE=nerdy
-export AURALINE_THEME=blue
+export AURALINE_THEME="0,102,204"
 eval "$(auraline init bash)"
 ```
 
-## Zsh
-```
+### Zsh (`~/.zshrc`)
+
+```zsh
 export AURALINE_PROFILE=nerdy
-export AURALINE_THEME=blue
-eval "$(auraline init bash)"
+export AURALINE_THEME="0,102,204"
+eval "$(auraline init zsh)"
 ```
+
+### Environment Variables
+
+- **`AURALINE_PROFILE`**: Selects a base profile (`minimal`, `lean`, or `nerdy`).
+- **`AURALINE_OPTIONS`**: Space-separated extra flags merged on top of the active profile (e.g. `export AURALINE_OPTIONS="--full-pwd --realname"`).
+- **`AURALINE_THEME`**: Sets the accent color (named ANSI color or `R,G,B` truecolor tuple).
 
 Profiles
 --------
 
-The `AURALINE_PROFILE` environment variable allows you to select a predefined profile for the prompt.
+| Profile   | Enabled Providers | Nerd Fonts |
+|-----------|-------------------|------------|
+| `minimal` | `user`, `hostname`, `pwd` *(default)* | No |
+| `lean`    | `user`, `hostname`, `pwd`, `memory`, `ssh`, `netif`, `duration`, `exit_code` | No |
+| `nerdy`   | `user`, `hostname`, `pwd`, `os`, `virt`, `memory`, `huge_pages`, `ssh`, `netif`, `netns`, `manifest`, `vcs`, `duration`, `exit_code` | Yes |
 
-You can choose from the following profiles:
-- `minimal`: A minimalistic prompt with only the most essential information (used as default)
-- `lean`: A balanced prompt with a moderate amount of information. Doesn't require Nerd Fonts.
-- `nerdy`: A more detailed prompt with additional information and Nerd Font icons.
+Theme Colors
+------------
 
-Theme Color
------------
-
-The `--theme` option (`AURALINE_THEME` asl well) allows you to customize the color of the prompt.
-You can use one of the predefined color names or a true color value.
+The `--theme` option (or `AURALINE_THEME` environment variable) customizes the prompt accent color using either a predefined ANSI color name or a 24-bit RGB tuple.
 
 ### Predefined Colors
 
-You can use any of the following predefined color names:
+- Standard: `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, `purple`
+- Bright: `bright_black`, `bright_red`, `bright_green`, `bright_yellow`, `bright_blue`, `bright_magenta`, `bright_cyan`, `bright_white`, `bright_purple`
 
-- `black`
-- `red`
-- `green`
-- `yellow`
-- `blue`
-- `magenta`
-- `cyan`
-- `white`
-- `purple`
-- `bright_black`
-- `bright_red`
-- `bright_green`
-- `bright_yellow`
-- `bright_blue`
-- `bright_magenta`
-- `bright_cyan`
-- `bright_white`
+```bash
+auraline prompt --profile nerdy --theme cyan
+```
 
-Example:
-`auraline --theme red`
+### True Color (`R,G,B`)
 
-### True Color
+Specify `r,g,b` components (`0..=255`):
 
-You can also specify a true color value in the format `r,g,b`, where `r`, `g`, and `b` are integers from 0 to 255.
-
-Example:
-`auraline --theme 128,0,128`
+```bash
+export AURALINE_THEME="0,102,204"
+auraline prompt --profile nerdy --theme 128,0,128
+```
 
 Supported Providers
 -------------------
 
-`auraline` supports a wide range of information providers that can be displayed in your prompt. Each provider can be enabled using the corresponding command-line option.
+All enabled providers execute concurrently on a Tokio runtime; non-VCS providers run in parallel while VCS root discovery walks the directory tree.
 
 ### Basic Information
 - **User** (`-u`, `--user`): Current username
 - **Realname** (`-r`, `--realname`): User's real name
-- **Hostname** (`-h`, `--hostname`): System hostname
-- **Device Name** (`-d`, `--device-name`): Device name
-- **Distro** (`-D`, `--distro`): Linux distribution name
-- **PWD** (`-w`, `--pwd`): Current working directory (with `~` expansion)
-- **Full PWD** (`-W`, `--full-pwd`): Current working directory (absolute path)
+- **Hostname** (`-h`, `--hostname`): System hostname (`@hostname`)
+- **Device Name** (`-d`, `--device-name`): System device/computer name
+- **Distro** (`-D`, `--distro`): OS / Linux distribution name
+- **PWD** (`-w`, `--pwd`): Current working directory (with `~` home shortening)
+- **Full PWD** (`-W`, `--full-pwd`): Current working directory (full path)
 
-### Version Control Systems
-The VCS provider (`-v`, `--vcs`) automatically detects and displays information from the following version control systems:
-- **Git**: Branch name, commit info, status (staged, modified, untracked files)
-- **Mercurial (hg)**: Branch name, commit hash, status
-- **Jujutsu (jj)**: Branch name, commit info, status
-- **Pijul**: Channel name, change hash, status
-- **Darcs**: Commit information, status
+### Version Control Systems (`-v`, `--vcs`)
+Automatically walks parent directories to detect the active repository:
+- **Git**:
+  - Current branch or detached `HEAD`
+  - Active repository state / action (`rebase ²⁄₅`, `merge`, `cherry-pick`, `revert`, `bisect`)
+  - Working tree status counts with superscripts: conflicts (`≠`), staged (`●`), modified (`○`), untracked (`⁇`)
+  - Stash count (`≡`), linked worktrees (`⧉`), tag/commit describe (`v0.9.0▴22∷6adea710`), and upstream divergence (`↑` ahead / `↓` behind)
+- **Jujutsu (`jj`)**: Bookmarks/branches, working-copy status, change/commit description, and divergence
+- **Mercurial (`hg`)**: Branch name, commit hash, and status
+- **Pijul**: Channel name, change hash, and status
+- **Darcs**: Commit info and status
 
-### System Information
-- **OS** (`-o`, `--os`): Operating system icon (supports 60+ Linux distributions, BSD variants, macOS, Windows)
-- **SSH** (`-s`, `--ssh`): SSH connection information (remote IP and port)
-- **Memory** (`-m`, `--memory`): Current memory usage percentage
-- **HugePages** (`-H`, `--huge-pages`): HugePages configuration and allocation (NUMA-aware)
-- **Network Interface** (`-n`, `--netif`): Active network interfaces
-- **Network Namespace** (`-N`, `--netns`): Current network namespace
+### System & Networking
+- **OS** (`-o`, `--os`): OS / distribution Nerd Font icon (supports 60+ Linux distributions, BSD variants, macOS, Windows)
+- **Memory** (`-m`, `--memory`): Memory usage percentage
+- **HugePages** (`-H`, `--huge-pages`): Linux HugePages allocation by page size, with per-NUMA-node subscript breakdown on multi-socket systems (e.g. `₀8x2MB,₁8x2MB`)
+- **SSH** (`-s`, `--ssh`): Active SSH session indicator with remote client IP and port
+- **Network Interfaces** (`-n`, `--netif`): Active network interfaces with assigned addresses
+- **Network Namespace** (`-N`, `--netns`): Current Linux network namespace (`ip netns`)
 
-### Virtualization & Containers
-The virtualization provider (`-V`, `--virt`) detects and displays information about:
-- **Hypervisors**: KVM, QEMU, VMware, VirtualBox, Hyper-V, Xen, bhyve, Parallels, and more
-- **Cloud Platforms**: Amazon EC2, Google Cloud Platform, Azure
-- **Containers**: Docker, Podman, LXC, systemd-nspawn, WSL, OpenVZ, and more
+### Virtualization & Containers (`-V`, `--virt`)
+- **Hypervisors & Cloud**: KVM, QEMU, VMware, VirtualBox, Hyper-V, Xen, bhyve, Parallels, Apple Virtualization, Amazon EC2, Google Cloud Platform, Azure
+- **Containers**: Docker, Podman, LXC, systemd-nspawn, WSL, OpenVZ
 
-### Development & Execution
-- **Manifest** (`-M`, `--manifest`): Detects development environment from manifest files (supports 50+ languages and frameworks including Rust, Python, Node.js, Go, Java, C/C++, etc.)
-- **Duration** (`-e`, `--duration`): Execution time of the last command
-- **Exit Code** (`--exit-code`): Exit code of the last command (shown only on error)
+### Development & Command Execution
+- **Manifest** (`-M`, `--manifest`): Detects project manifest files in the current directory and displays both the toolchain/compiler version (cached per user in `/tmp`) and package version (`1.99.0 ↦ v0.14.0`). Supports 50+ languages and build systems including Rust (`Cargo.toml`), C/C++ (`CMakeLists.txt`, `meson.build`, `vcpkg.json`, `conanfile.py`, `xmake.lua`), Go (`go.mod`), Zig (`build.zig.zon`), Python (`pyproject.toml`, `setup.cfg`, `Pipfile`), Node.js/Deno/Bun (`package.json`, `deno.json`), Haskell (`*.cabal`, `stack.yaml`), OCaml (`dune-project`, `*.opam`), Java/Kotlin/Scala (`pom.xml`, `build.gradle`, `build.sbt`), Elixir (`mix.exs`), Dart (`pubspec.yaml`), C# (`*.csproj`), Common Lisp (`*.asd`), Lua (`*.rockspec`), and more.
+- **Duration** (`-e`, `--duration`): Execution time of the last interactive command (`ns`, `μs`, `ms`, `s`).
+- **Exit Code** (`--exit-code <EXIT_CODE>`): Displayed when the last command exits with a non-zero status (`✘ <code>`), automatically decoding fatal Unix signals (`129..=192`) into signal names (e.g. `✘ 130 (INT)`, `✘ 137 (KILL)`, `✘ 139 (SEGV)`, `✘ 143 (TERM)`).
+- **Timings** (`--timings`): Prints a per-provider execution latency breakdown for profiling and debugging.
 
 Nerd Fonts
 ----------
 
-The `-n` or `--nerd-font` option enables the use of Nerd Fonts for icons and symbols in the prompt.
-Make sure you have a Nerd Font installed and configured in your terminal for the symbols to render correctly.
+The `--nerd-font` option (enabled automatically by the `nerdy` profile) uses Nerd Font glyphs for OS, language, VCS, and system icons. Make sure a [Nerd Font](https://www.nerdfonts.com/) is configured in your terminal.

@@ -83,7 +83,7 @@ pub struct Options {
     )]
     pub manifest: bool,
 
-    #[clap(short('e'), long, help = "Show the duration of the last command)")]
+    #[clap(short('e'), long, help = "Show the duration of the last command")]
     pub duration: bool,
 
     #[clap(long, help = "Specify the exit-code of the last command to show")]
