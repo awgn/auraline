@@ -423,6 +423,17 @@ fn project_version_strategy(lang: Language, key: &str) -> Option<VersionStrategy
     }
 }
 
+/// Extract the first non-empty string enclosed in `"` or `'` from `s`.
+#[inline]
+fn extract_first_quoted(s: &str) -> Option<SmolStr> {
+    let q_open = s.find(['"', '\''])?;
+    let quote_char = s.as_bytes()[q_open] as char;
+    let rest = &s[q_open + 1..];
+    let q_end = rest.find(quote_char)?;
+    let v = &rest[..q_end];
+    (!v.is_empty()).then(|| SmolStr::new(v))
+}
+
 /// Apply `strategy` to the raw text of a manifest file and return the version string,
 /// or `None` if the pattern is not found or the matched value is empty.
 fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> {
@@ -433,16 +444,8 @@ fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> 
                 if let Some(rest) = line.strip_prefix(key) {
                     let rest = rest.trim_start();
                     if let Some(rest) = rest.strip_prefix(sep) {
-                        let rest = rest.trim_start();
-                        if let Some(q_open) = rest.find(['"', '\'']) {
-                            let quote_char = rest.chars().nth(q_open).unwrap();
-                            let rest = &rest[q_open + 1..];
-                            if let Some(q_end) = rest.find(quote_char) {
-                                let v = &rest[..q_end];
-                                if !v.is_empty() {
-                                    return Some(SmolStr::new(v));
-                                }
-                            }
+                        if let Some(v) = extract_first_quoted(rest.trim_start()) {
+                            return Some(v);
                         }
                     }
                 }
@@ -476,16 +479,8 @@ fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> 
                 if !line.starts_with(prefix) {
                     continue;
                 }
-                // Find the first quoted string on this line.
-                if let Some(q_open) = line.find(['"', '\'']) {
-                    let quote_char = line.chars().nth(q_open).unwrap();
-                    let rest = &line[q_open + 1..];
-                    if let Some(q_end) = rest.find(quote_char) {
-                        let v = &rest[..q_end];
-                        if !v.is_empty() {
-                            return Some(SmolStr::new(v));
-                        }
-                    }
+                if let Some(v) = extract_first_quoted(line) {
+                    return Some(v);
                 }
             }
             None
@@ -553,16 +548,8 @@ fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> 
                 if let Some(idx) = line.find(".version") {
                     let rest = line[idx + ".version".len()..].trim_start();
                     if let Some(rest) = rest.strip_prefix('=') {
-                        let rest = rest.trim_start();
-                        if let Some(q_open) = rest.find(['"', '\'']) {
-                            let quote_char = rest.chars().nth(q_open).unwrap();
-                            let rest = &rest[q_open + 1..];
-                            if let Some(q_end) = rest.find(quote_char) {
-                                let v = &rest[..q_end];
-                                if !v.is_empty() {
-                                    return Some(SmolStr::new(v));
-                                }
-                            }
+                        if let Some(v) = extract_first_quoted(rest.trim_start()) {
+                            return Some(v);
                         }
                     }
                 }
@@ -582,27 +569,35 @@ async fn version_from_file(path: &std::path::Path, lang: Language, key: &str) ->
 
 const CACHE_TTL_SECS: u64 = 10; // 10 seconds
 
-fn get_cache_path() -> std::path::PathBuf {
-    let username = whoami::fallible::username().unwrap_or_else(|_| "default".to_string());
-    std::env::temp_dir().join(format!("auraline-manifest-cache-{}.txt", username))
+fn get_cache_path() -> &'static std::path::Path {
+    static CACHE_PATH: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+    CACHE_PATH.get_or_init(|| {
+        #[cfg(unix)]
+        let id = unsafe { libc::getuid() }.to_string();
+        #[cfg(not(unix))]
+        let id = std::env::var("USER")
+            .or_else(|_| std::env::var("USERNAME"))
+            .unwrap_or_else(|_| "default".to_string());
+        std::env::temp_dir().join(format!("auraline-manifest-cache-{id}.txt"))
+    })
 }
 
 fn read_cached_version(lang: Language) -> Option<SmolStr> {
     let cache_path = get_cache_path();
-    let content = std::fs::read_to_string(&cache_path).ok()?;
+    let content = std::fs::read_to_string(cache_path).ok()?;
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .ok()?
         .as_secs();
 
-    let lang_name = format!("{:?}", lang);
+    let lang_name = format_smolstr!("{:?}", lang);
 
     for line in content.lines() {
         let mut parts = line.splitn(3, ':');
         let name = parts.next()?;
         let version = parts.next()?;
         let timestamp_str = parts.next()?;
-        if name == lang_name {
+        if name == lang_name.as_str() {
             let timestamp: u64 = timestamp_str.parse().ok()?;
             if now >= timestamp && now - timestamp < CACHE_TTL_SECS {
                 return Some(SmolStr::new(version));
@@ -619,14 +614,14 @@ fn write_cached_version(lang: Language, version: &str) -> Option<()> {
         .ok()?
         .as_secs();
 
-    let lang_name = format!("{:?}", lang);
+    let lang_name = format_smolstr!("{:?}", lang);
     let mut lines = Vec::new();
 
-    if let Ok(content) = std::fs::read_to_string(&cache_path) {
+    if let Ok(content) = std::fs::read_to_string(cache_path) {
         for line in content.lines() {
             let mut parts = line.splitn(3, ':');
             if let Some(name) = parts.next() {
-                if name != lang_name {
+                if name != lang_name.as_str() {
                     lines.push(line.to_string());
                 }
             }
@@ -635,9 +630,12 @@ fn write_cached_version(lang: Language, version: &str) -> Option<()> {
 
     lines.push(format!("{}:{}:{}", lang_name, version, now));
 
-    let temp_path = cache_path.with_extension("tmp");
+    let temp_path = cache_path.with_extension(format!("tmp.{}", std::process::id()));
     std::fs::write(&temp_path, lines.join("\n")).ok()?;
-    std::fs::rename(&temp_path, &cache_path).ok()?;
+    if std::fs::rename(&temp_path, cache_path).is_err() {
+        let _ = std::fs::remove_file(&temp_path);
+        return None;
+    }
 
     Some(())
 }
@@ -760,7 +758,8 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     }
 
     let mut entries = tokio::fs::read_dir(".").await.ok()?;
-    let mut languages: SmallVec<[&LanguageInfo; 8]> = SmallVec::new();
+    let mut top_kind: Option<MatchKind> = None;
+    let mut top_icons: SmallVec<[&'static str; 8]> = SmallVec::new();
     // All ProjectManifest entries found during the scan, in filesystem order.
     // We will try each in sequence and return the first that yields a version.
     let mut manifests: SmallVec<[(std::path::PathBuf, Language, SmolStr); 4]> = SmallVec::new();
@@ -776,42 +775,47 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
             continue;
         }
 
-        if let Some(lang) = MANIFEST_MAP.get(name) {
+        let matched = if let Some(lang) = MANIFEST_MAP.get(name) {
+            Some((lang, name))
+        } else if let Some(dot_idx) = name.rfind('.') {
+            let ext_key = &name[dot_idx..];
+            MANIFEST_MAP.get(ext_key).map(|lang| (lang, ext_key))
+        } else {
+            None
+        };
+
+        if let Some((lang, key)) = matched {
             if lang.kind == MatchKind::ProjectManifest {
-                manifests.push((entry.path(), lang.lang, SmolStr::new(name)));
+                manifests.push((entry.path(), lang.lang, SmolStr::new(key)));
             }
-            languages.push(lang);
-        } else if let Some(ext) = entry.path().extension().and_then(|s| s.to_str()) {
-            let key = format_smolstr!(".{ext}");
-            if let Some(lang) = MANIFEST_MAP.get(key.as_str()) {
-                if lang.kind == MatchKind::ProjectManifest {
-                    manifests.push((entry.path(), lang.lang, key));
+
+            match top_kind {
+                None => {
+                    top_kind = Some(lang.kind);
+                    top_icons.push(lang.icon);
                 }
-                languages.push(lang);
+                Some(cur_top) if lang.kind > cur_top => {
+                    top_kind = Some(lang.kind);
+                    top_icons.clear();
+                    top_icons.push(lang.icon);
+                }
+                Some(cur_top) if lang.kind == cur_top => {
+                    if !top_icons.contains(&lang.icon) {
+                        top_icons.push(lang.icon);
+                    }
+                }
+                _ => {}
             }
         }
     }
 
-    languages.sort_by(|a, b| {
-        let ord = b.kind.cmp(&a.kind);
-        if ord == std::cmp::Ordering::Equal {
-            a.icon.cmp(b.icon)
-        } else {
-            ord
-        }
-    });
-
-    let top_kind = languages.first()?.kind;
-    languages.retain(|lang| lang.kind == top_kind);
+    let top_kind = top_kind?;
+    top_icons.sort_unstable();
 
     // Concatenate deduplicated icons into a SmolStr.
     let mut builder = SmolStrBuilder::new();
-    let mut cur_icon = "";
-    for lang in &languages {
-        if lang.icon != cur_icon {
-            builder.push_str(lang.icon);
-            cur_icon = lang.icon;
-        }
+    for icon in &top_icons {
+        builder.push_str(icon);
     }
     let icons = builder.finish();
 
@@ -846,4 +850,24 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
         Some(ver) => Chunk::new(icons, ver),
         None => Chunk::icon(icons),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{extract_version, VersionStrategy};
+
+    #[test]
+    fn test_extract_version_utf8_before_quote() {
+        // Non-ASCII characters between key/prefix and the opening quote must not
+        // skew byte-vs-char indexing or panic.
+        let content = "version = /* versione 🚀 */ \"1.2.3\"\n";
+        assert_eq!(
+            extract_version(VersionStrategy::LinePrefixQuoted("version"), content).as_deref(),
+            Some("1.2.3")
+        );
+        assert_eq!(
+            extract_version(VersionStrategy::KeyValueQuoted("version", "="), content).as_deref(),
+            Some("1.2.3")
+        );
+    }
 }
