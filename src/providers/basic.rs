@@ -53,13 +53,13 @@ pub async fn distro(opts: &Options) -> Option<Chunk<String>> {
 
 #[inline]
 pub async fn pwd(opts: &Options) -> Option<Chunk<std::borrow::Cow<'static, str>>> {
-    let home = std::env::var("HOME")
-        .map(std::path::PathBuf::from)
-        .ok()
-        .or_else(std::env::home_dir);
-
     opts.pwd
         .then(|| {
+            let home = std::env::var("HOME")
+                .map(std::path::PathBuf::from)
+                .ok()
+                .or_else(std::env::home_dir);
+
             let current_dir = std::env::var("PWD")
                 .map(std::path::PathBuf::from)
                 .ok()
