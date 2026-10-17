@@ -15,25 +15,25 @@ categories = ["command-line-utilities"]
 [dependencies]
 phf = { version = "0.13.1", features = ["macros"] }
 phf_macros = "0.13.1"
-anyhow = "1.0.102"
-clap = { version = "4.6.1", features = ["derive"] }
-futures = "0.3.32"
+anyhow = "1.0.104"
+clap = { version = "4.6.7", features = ["derive"] }
+futures = "0.3.34"
 if-addrs = "0.14.0"
 itertools = "0.13.0"
 itoa = "1.0.18"
-lazy_static = "1.5.0"
-tokio = { version = "1.52.3", features = ["io-std", "macros", "mio", "process", "rt", "fs", "rt-multi-thread", "sync", "time", "tokio-macros", "io-util"] }
-owo-colors = "4.3.0"
+lazy_static = "1.5.1"
+tokio = { version = "1.53.3", features = ["io-std", "macros", "mio", "process", "rt", "fs", "rt-multi-thread", "sync", "time", "tokio-macros", "io-util"] }
+owo-colors = "4.4.0"
 frunk = "0.4.4"
 smol_str = "0.3.6"
-libc = "0.2.186"
+libc = "0.2.191"
 sysinfo = "0.37.2"
 scopeguard = "1.2.0"
 enum_dispatch = "0.3.13"
 whoami = "1.6.1"
-smallvec = { version = "1.15.1", features = ["const_generics"] }
+smallvec = { version = "1.16.3", features = ["const_generics"] }
 parking_lot = "0.12.5"
-papaya = "0.2.4"
+papaya = "0.2.5"
 
 [profile.release]
 codegen-units    = 1
