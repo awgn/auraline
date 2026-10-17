@@ -1,6 +1,6 @@
 use crate::chunk::Chunk;
 use crate::providers::vcs::{merge_icons, StatusIcon, VcsTrait};
-use crate::style::to_superscript;
+use crate::style::{to_subscript, to_superscript};
 use crate::{cmd::CMD, options::Options};
 use smallvec::SmallVec;
 use smol_str::{format_smolstr, SmolStr, ToSmolStr};
@@ -17,6 +17,7 @@ macro_rules! git {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Git {
+    git_dir: PathBuf,
     common_dir: PathBuf,
     local_branch: Option<SmolStr>,
 }
@@ -115,9 +116,10 @@ impl Git {
                     }
                 })
             })
-            .unwrap_or(git_dir);
+            .unwrap_or_else(|| git_dir.clone());
 
         Some(Self {
+            git_dir,
             common_dir,
             local_branch,
         })
@@ -138,6 +140,47 @@ impl Git {
         } else {
             0
         }
+    }
+
+    fn get_action(&self) -> Option<SmolStr> {
+        for dir_name in ["rebase-merge", "rebase-apply"] {
+            let dir = self.git_dir.join(dir_name);
+            if dir.is_dir() {
+                let step = std::fs::read_to_string(dir.join("msgnum"))
+                    .or_else(|_| std::fs::read_to_string(dir.join("next")))
+                    .ok();
+                let total = std::fs::read_to_string(dir.join("end"))
+                    .or_else(|_| std::fs::read_to_string(dir.join("last")))
+                    .ok();
+                if let (Some(s), Some(t)) = (step, total) {
+                    let s = s.trim();
+                    let t = t.trim();
+                    if !s.is_empty() && !t.is_empty() {
+                        return Some(format_smolstr!(
+                            "rebase {}⁄{}",
+                            to_superscript(s),
+                            to_subscript(t)
+                        ));
+                    }
+                }
+                return Some(SmolStr::new_static("rebase"));
+            }
+        }
+
+        if self.git_dir.join("MERGE_HEAD").is_file() {
+            return Some(SmolStr::new_static("merge"));
+        }
+        if self.git_dir.join("CHERRY_PICK_HEAD").is_file() {
+            return Some(SmolStr::new_static("cherry-pick"));
+        }
+        if self.git_dir.join("REVERT_HEAD").is_file() {
+            return Some(SmolStr::new_static("revert"));
+        }
+        if self.git_dir.join("BISECT_LOG").is_file() {
+            return Some(SmolStr::new_static("bisect"));
+        }
+
+        None
     }
 }
 
@@ -167,6 +210,10 @@ impl VcsTrait for Git {
             (None, Some(name)) => Some(Chunk::info(name)),
             (Some(icon), Some(name)) => Some(Chunk::new(icon, name)),
         }
+    }
+
+    async fn action(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        self.get_action().map(Chunk::info)
     }
 
     async fn commit(&self, opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
@@ -369,7 +416,7 @@ fn git_bidirectional_inclusion(a: &SmolStr, b: &SmolStr) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_git_describe;
+    use super::{parse_git_describe, Git};
 
     #[test]
     fn test_parse_git_describe() {
@@ -384,5 +431,31 @@ mod tests {
             parse_git_describe("release-2026-10-0-gabcdef01"),
             "release-2026-10∷abcdef01"
         );
+    }
+
+    #[test]
+    fn test_git_action_detection() {
+        let tmp = std::env::temp_dir().join(format!("auraline-test-git-action-{}", std::process::id()));
+        let git_dir = tmp.join(".git");
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&git_dir).unwrap();
+        std::fs::write(git_dir.join("HEAD"), "ref: refs/heads/main\n").unwrap();
+
+        let git = Git::new(&tmp).unwrap();
+        assert_eq!(git.get_action(), None);
+
+        // Test merge
+        std::fs::write(git_dir.join("MERGE_HEAD"), "123456\n").unwrap();
+        assert_eq!(git.get_action().as_deref(), Some("merge"));
+        std::fs::remove_file(git_dir.join("MERGE_HEAD")).unwrap();
+
+        // Test rebase with progress
+        let rebase_dir = git_dir.join("rebase-merge");
+        std::fs::create_dir_all(&rebase_dir).unwrap();
+        std::fs::write(rebase_dir.join("msgnum"), "2\n").unwrap();
+        std::fs::write(rebase_dir.join("end"), "5\n").unwrap();
+        assert_eq!(git.get_action().as_deref(), Some("rebase ²⁄₅"));
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }
