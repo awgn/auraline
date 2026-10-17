@@ -120,7 +120,11 @@ fn format_hugepages(huge_pages: &[HugePage]) -> SmolStr {
             if let Some(ref sub) = prefix {
                 builder.push_str(sub);
             }
-            builder.push_str(&format_smolstr!("{}x{}", page.count, format_kb(page.size_kb)));
+            builder.push_str(&format_smolstr!(
+                "{}x{}",
+                page.count,
+                format_kb(page.size_kb)
+            ));
         }
     }
 
@@ -133,7 +137,7 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     }
     let huge_pages = get_hugepages_status()?;
     Some(Chunk::new(
-            opts.select_str("⎘", "\u{f0d7f}"),
+        opts.select_str("⎘", "\u{f0d7f}"),
         format_hugepages(&huge_pages),
     ))
 }

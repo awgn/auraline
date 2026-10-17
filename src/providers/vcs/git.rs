@@ -422,7 +422,10 @@ mod tests {
     fn test_parse_git_describe() {
         assert_eq!(parse_git_describe("b8bad0c9"), "b8bad0c9");
         assert_eq!(parse_git_describe("v0.9.0-0-gb8bad0c9"), "v0.9.0∷b8bad0c9");
-        assert_eq!(parse_git_describe("v0.9.0-7-gb8bad0c9"), "v0.9.0▴7∷b8bad0c9");
+        assert_eq!(
+            parse_git_describe("v0.9.0-7-gb8bad0c9"),
+            "v0.9.0▴7∷b8bad0c9"
+        );
         assert_eq!(
             parse_git_describe("v1.0.0-beta.1-3-g12345678"),
             "v1.0.0-beta.1▴3∷12345678"
@@ -435,7 +438,8 @@ mod tests {
 
     #[test]
     fn test_git_action_detection() {
-        let tmp = std::env::temp_dir().join(format!("auraline-test-git-action-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("auraline-test-git-action-{}", std::process::id()));
         let git_dir = tmp.join(".git");
         let _ = std::fs::remove_dir_all(&tmp);
         std::fs::create_dir_all(&git_dir).unwrap();

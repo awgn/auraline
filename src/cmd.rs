@@ -1,10 +1,10 @@
 use lazy_static::lazy_static;
+use papaya::HashMap;
 use smallvec::SmallVec;
 use smol_str::SmolStr;
 use std::{ffi::OsStr, path::Path, sync::Arc};
 use tokio::process::Command;
 use tokio::sync::OnceCell;
-use papaya::HashMap;
 
 lazy_static! {
     pub static ref CMD: CmdCache = CmdCache::new();
