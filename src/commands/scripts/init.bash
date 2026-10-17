@@ -1,7 +1,10 @@
 auraline_pre_cmd() {
-   echo -n "$(date +%s%N)" > /tmp/auraline_cmd_start.$$
+    if [[ -n "${EPOCHREALTIME:-}" ]]; then
+        printf '%s000' "${EPOCHREALTIME/./}" > "/tmp/auraline_cmd_start.$$"
+    else
+        printf '%s' "$(date +%s%N)" > "/tmp/auraline_cmd_start.$$"
+    fi
 }
 
-trap 'auraline_pre_cmd' DEBUG
-
+[[ "${PS0:-}" != *"auraline_pre_cmd"* ]] && PS0="${PS0:-}"'$(auraline_pre_cmd)'
 PS1='$(~/.cargo/bin/auraline prompt --exit-code $?)\n\$ '
