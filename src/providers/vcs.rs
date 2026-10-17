@@ -18,7 +18,6 @@ use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
 use smallvec::SmallVec;
 use smol_str::{SmolStr, SmolStrBuilder};
-use tokio::fs;
 
 #[enum_dispatch]
 pub trait VcsTrait {
@@ -68,28 +67,20 @@ pub async fn infer_vcs(start: PathBuf, opts: &Options) -> Option<(Vcs, PathBuf)>
 
     let mut dir = start.canonicalize().ok()?;
     loop {
-        let (jj, git, hg, pijul, darcs) = tokio::join!(
-            fs::metadata(dir.join(".jj")),
-            fs::metadata(dir.join(".git")),
-            fs::metadata(dir.join(".hg")),
-            fs::metadata(dir.join(".pijul")),
-            fs::metadata(dir.join("_darcs")),
-        );
-
-        if git.is_ok() {
+        if dir.join(".git").exists() {
             let git = Git::new(&dir)?;
             return Some((Vcs::Git(git), dir));
         }
-        if pijul.is_ok() {
+        if dir.join(".pijul").exists() {
             return Some((Vcs::Pijul(Pijul), dir));
         }
-        if jj.is_ok() {
+        if dir.join(".jj").exists() {
             return Some((Vcs::Jj(Jj), dir));
         }
-        if hg.is_ok() {
+        if dir.join(".hg").exists() {
             return Some((Vcs::Hg(Hg), dir));
         }
-        if darcs.is_ok() {
+        if dir.join("_darcs").exists() {
             return Some((Vcs::Darcs(Darcs), dir));
         }
 
