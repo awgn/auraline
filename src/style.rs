@@ -55,3 +55,16 @@ pub fn to_superscript(s: &str) -> SmolStr {
     }
     builder.finish()
 }
+
+pub fn to_subscript(s: &str) -> SmolStr {
+    const SUBSCRIPT_DIGITS: [char; 10] = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'];
+    let mut builder = SmolStrBuilder::new();
+    for c in s.chars() {
+        builder.push(if c.is_ascii_digit() {
+            SUBSCRIPT_DIGITS[c as usize - '0' as usize]
+        } else {
+            c
+        });
+    }
+    builder.finish()
+}
