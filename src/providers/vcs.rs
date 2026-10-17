@@ -77,7 +77,8 @@ pub async fn infer_vcs(start: PathBuf, opts: &Options) -> Option<(Vcs, PathBuf)>
         );
 
         if git.is_ok() {
-            return Some((Vcs::Git(Git), dir));
+            let git = Git::new(&dir)?;
+            return Some((Vcs::Git(git), dir));
         }
         if pijul.is_ok() {
             return Some((Vcs::Pijul(Pijul), dir));

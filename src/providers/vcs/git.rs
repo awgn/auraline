@@ -6,7 +6,7 @@ use smallvec::SmallVec;
 use smol_str::{format_smolstr, SmolStr, ToSmolStr};
 use std::convert::Infallible;
 use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 macro_rules! git {
@@ -16,7 +16,10 @@ macro_rules! git {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Git;
+pub struct Git {
+    common_dir: PathBuf,
+    local_branch: Option<SmolStr>,
+}
 
 struct ParsedBranchInfo {
     _local: Option<String>,
@@ -70,128 +73,82 @@ fn parse_branch_line(line: &str) -> Option<ParsedBranchInfo> {
     })
 }
 
-fn get_local_branch(repo_root: &Path) -> Option<String> {
-    let git_dir = repo_root.join(".git");
-    let head_file = if git_dir.is_dir() {
-        git_dir.join("HEAD")
-    } else if git_dir.is_file() {
-        if let Ok(content) = std::fs::read_to_string(&git_dir) {
-            if let Some(line) = content.lines().next() {
-                if let Some(gitdir_path) = line.strip_prefix("gitdir: ") {
-                    let real_git_dir = Path::new(gitdir_path.trim());
-                    let real_git_dir = if real_git_dir.is_absolute() {
-                        real_git_dir.to_path_buf()
-                    } else {
-                        repo_root.join(real_git_dir)
-                    };
-                    real_git_dir.join("HEAD")
-                } else {
-                    return None;
-                }
+impl Git {
+    pub fn new(repo_root: &Path) -> Option<Self> {
+        let dot_git = repo_root.join(".git");
+        let git_dir = if dot_git.is_dir() {
+            dot_git
+        } else if dot_git.is_file() {
+            let content = std::fs::read_to_string(&dot_git).ok()?;
+            let line = content.lines().next()?;
+            let gitdir_path = Path::new(line.strip_prefix("gitdir: ")?.trim());
+            if gitdir_path.is_absolute() {
+                gitdir_path.to_path_buf()
             } else {
-                return None;
+                repo_root.join(gitdir_path)
             }
         } else {
             return None;
-        }
-    } else {
-        return None;
-    };
+        };
 
-    let content = std::fs::read_to_string(head_file).ok()?;
-    let line = content.lines().next()?;
-    if let Some(branch) = line.strip_prefix("ref: refs/heads/") {
-        Some(branch.trim().to_string())
-    } else {
-        Some("HEAD".to_string())
+        let local_branch = std::fs::read_to_string(git_dir.join("HEAD"))
+            .ok()
+            .and_then(|content| {
+                let line = content.lines().next()?;
+                if let Some(branch) = line.strip_prefix("ref: refs/heads/") {
+                    Some(SmolStr::new(branch.trim()))
+                } else {
+                    Some(SmolStr::new_static("HEAD"))
+                }
+            });
+
+        let common_dir = std::fs::read_to_string(git_dir.join("commondir"))
+            .ok()
+            .and_then(|content| {
+                let rel = content.lines().next()?.trim();
+                (!rel.is_empty()).then(|| {
+                    let p = Path::new(rel);
+                    if p.is_absolute() {
+                        p.to_path_buf()
+                    } else {
+                        git_dir.join(p)
+                    }
+                })
+            })
+            .unwrap_or(git_dir);
+
+        Some(Self {
+            common_dir,
+            local_branch,
+        })
     }
-}
 
-fn get_remote_head(repo_root: &Path) -> Option<String> {
-    let git_dir = repo_root.join(".git");
-    let head_file = if git_dir.is_dir() {
-        git_dir.join("refs/remotes/origin/HEAD")
-    } else if git_dir.is_file() {
-        if let Ok(content) = std::fs::read_to_string(&git_dir) {
-            if let Some(line) = content.lines().next() {
-                if let Some(gitdir_path) = line.strip_prefix("gitdir: ") {
-                    let real_git_dir = Path::new(gitdir_path.trim());
-                    let real_git_dir = if real_git_dir.is_absolute() {
-                        real_git_dir.to_path_buf()
-                    } else {
-                        repo_root.join(real_git_dir)
-                    };
-                    real_git_dir.join("refs/remotes/origin/HEAD")
-                } else {
-                    return None;
-                }
-            } else {
-                return None;
-            }
+    fn get_remote_head(&self) -> Option<SmolStr> {
+        let head_file = self.common_dir.join("refs/remotes/origin/HEAD");
+        let content = std::fs::read_to_string(head_file).ok()?;
+        let line = content.lines().next()?;
+        let target = line.strip_prefix("ref: refs/remotes/origin/")?;
+        Some(SmolStr::new(target.trim()))
+    }
+
+    fn get_stash_count(&self) -> usize {
+        let stash_log = self.common_dir.join("logs/refs/stash");
+        if let Ok(content) = std::fs::read_to_string(stash_log) {
+            content.lines().count()
         } else {
-            return None;
+            0
         }
-    } else {
-        return None;
-    };
-
-    let content = std::fs::read_to_string(head_file).ok()?;
-    let line = content.lines().next()?;
-    let target = line.strip_prefix("ref: refs/remotes/origin/")?;
-    Some(target.trim().to_string())
-}
-
-fn get_stash_count(repo_root: &Path) -> Option<usize> {
-    let git_dir = repo_root.join(".git");
-    let real_git_dir = if git_dir.is_dir() {
-        Some(git_dir)
-    } else if git_dir.is_file() {
-        if let Ok(content) = std::fs::read_to_string(&git_dir) {
-            if let Some(line) = content.lines().next() {
-                if let Some(gitdir_path) = line.strip_prefix("gitdir: ") {
-                    let real_git_dir = Path::new(gitdir_path.trim());
-                    Some(if real_git_dir.is_absolute() {
-                        real_git_dir.to_path_buf()
-                    } else {
-                        repo_root.join(real_git_dir)
-                    })
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    if let Some(dir) = real_git_dir {
-        let stash_log = dir.join("logs/refs/stash");
-        if stash_log.exists() {
-            if let Ok(content) = std::fs::read_to_string(stash_log) {
-                Some(content.lines().count())
-            } else {
-                Some(0)
-            }
-        } else {
-            Some(0)
-        }
-    } else {
-        None
     }
 }
 
 impl VcsTrait for Git {
-    async fn branch(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
-        let local = get_local_branch(path)?;
+    async fn branch(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        let local = self.local_branch.as_ref()?;
         let icon = if local == "HEAD" {
             Some("⚠")
         } else {
-            let remote = get_remote_head(path);
-            if Some(&local) == remote.as_ref() {
+            let remote = self.get_remote_head();
+            if Some(local) == remote.as_ref() {
                 Some("⟝")
             } else {
                 Some("⎇")
@@ -201,7 +158,7 @@ impl VcsTrait for Git {
         let name = if local == "HEAD" {
             None
         } else {
-            Some(SmolStr::new(local))
+            Some(local.clone())
         };
 
         match (icon, name) {
@@ -212,10 +169,11 @@ impl VcsTrait for Git {
         }
     }
 
-    async fn commit(&self, opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
-        let branch_name = get_local_branch(path)
-            .filter(|s| s != "HEAD" && !s.is_empty())
-            .map(SmolStr::from);
+    async fn commit(&self, opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        let branch_name = self
+            .local_branch
+            .as_ref()
+            .filter(|s| s.as_str() != "HEAD" && !s.is_empty());
 
         let descr = git_describe_cmd(opts).await;
 
@@ -227,7 +185,7 @@ impl VcsTrait for Git {
         match (branch_name, name_rev) {
             (_, None) => None,
             (None, Some(nr)) => Some(Chunk::info(nr)),
-            (Some(b), Some(nr)) if git_bidirectional_inclusion(&b, &nr) => None,
+            (Some(b), Some(nr)) if git_bidirectional_inclusion(b, &nr) => None,
             (Some(_), Some(nr)) => Some(Chunk::info(nr)),
         }
     }
@@ -236,7 +194,8 @@ impl VcsTrait for Git {
         git!("status", "--porcelain", "--branch")
             .await
             .and_then(|s| {
-                let icons = s.lines()
+                let icons = s
+                    .lines()
                     .skip(1)
                     .filter_map(|l| l.parse::<StatusIcon<Git>>().ok())
                     .collect::<SmallVec<[_; 8]>>();
@@ -248,35 +207,8 @@ impl VcsTrait for Git {
             })
     }
 
-    async fn worktree(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
-        let git_dir = path.join(".git");
-        let has_worktrees = if git_dir.is_dir() {
-            git_dir.join("worktrees").is_dir()
-        } else if git_dir.is_file() {
-            if let Ok(content) = std::fs::read_to_string(&git_dir) {
-                if let Some(line) = content.lines().next() {
-                    if let Some(gitdir_path) = line.strip_prefix("gitdir: ") {
-                        let real_git_dir = Path::new(gitdir_path.trim());
-                        let real_git_dir = if real_git_dir.is_absolute() {
-                            real_git_dir.to_path_buf()
-                        } else {
-                            path.join(real_git_dir)
-                        };
-                        real_git_dir.join("worktrees").is_dir()
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        } else {
-            false
-        };
-
-        if !has_worktrees {
+    async fn worktree(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        if !self.common_dir.join("worktrees").is_dir() {
             return None;
         }
 
@@ -295,25 +227,15 @@ impl VcsTrait for Git {
         })
     }
 
-    async fn stash(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
-        if let Some(count) = get_stash_count(path) {
-            if count > 0 {
-                let mut buffer = itoa::Buffer::new();
-                let n = buffer.format(count);
-                return Some(Chunk::info(format_smolstr!("≡{}", to_superscript(n))));
-            } else {
-                return None;
-            }
+    async fn stash(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+        let count = self.get_stash_count();
+        if count > 0 {
+            let mut buffer = itoa::Buffer::new();
+            let n = buffer.format(count);
+            Some(Chunk::info(format_smolstr!("≡{}", to_superscript(n))))
+        } else {
+            None
         }
-
-        git!("stash", "list")
-            .await
-            .filter(|s| !s.is_empty())
-            .map(|s| {
-                let mut buffer = itoa::Buffer::new();
-                let n = buffer.format(s.lines().count());
-                Chunk::info(format_smolstr!("≡{}", to_superscript(n)))
-            })
     }
 
     async fn divergence(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
@@ -392,20 +314,31 @@ impl FromStr for StatusIcon<Git> {
     }
 }
 
+fn parse_git_describe(s: &str) -> SmolStr {
+    // rsplitn(3, '-') splits from the right, so the elements are in reverse order:
+    // [hash, n, tag] for `<tag>-<n>-g<hash>` (preserving any `-` inside `<tag>`).
+    let output = s.trim().rsplitn(3, '-').collect::<SmallVec<[_; 3]>>();
+    match output[..] {
+        [] => "".to_smolstr(),
+        [tag] => tag.to_smolstr(),
+        ["0", tag] => tag.to_smolstr(),
+        [n, tag] => format_smolstr!("{tag}▴{n}"),
+        [hash, "0", tag] => {
+            let h = hash.strip_prefix('g').unwrap_or(hash);
+            format_smolstr!("{tag}∷{h}")
+        }
+        [hash, n, tag] => {
+            let h = hash.strip_prefix('g').unwrap_or(hash);
+            format_smolstr!("{tag}▴{n}∷{h}")
+        }
+        _ => unreachable!(),
+    }
+}
+
 async fn git_describe_cmd(_opts: &Options) -> Option<SmolStr> {
     git!("describe", "--abbrev=8", "--always", "--tag", "--long")
         .await
-        .map(|s| {
-            let output = s.trim().split('-').collect::<SmallVec<[_; 4]>>();
-            match output[..] {
-                [] => "".to_smolstr(),
-                [tag] => tag.to_smolstr(),
-                [tag, "0"] => tag.to_smolstr(),
-                [tag, n] => format_smolstr!("{tag}▴{n}"),
-                [tag, "0", hash] => format_smolstr!("{tag}∷{}", &hash[1..]),
-                [tag, n, hash, ..] => format_smolstr!("{tag}▴{n}∷{}", &hash[1..]),
-            }
-        })
+        .map(|s| parse_git_describe(&s))
 }
 
 async fn git_name_rev(_opts: &Options) -> Option<SmolStr> {
@@ -432,4 +365,24 @@ async fn git_name_rev(_opts: &Options) -> Option<SmolStr> {
 #[inline]
 fn git_bidirectional_inclusion(a: &SmolStr, b: &SmolStr) -> bool {
     a.contains(b.as_str()) || b.contains(a.as_str())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_git_describe;
+
+    #[test]
+    fn test_parse_git_describe() {
+        assert_eq!(parse_git_describe("b8bad0c9"), "b8bad0c9");
+        assert_eq!(parse_git_describe("v0.9.0-0-gb8bad0c9"), "v0.9.0∷b8bad0c9");
+        assert_eq!(parse_git_describe("v0.9.0-7-gb8bad0c9"), "v0.9.0▴7∷b8bad0c9");
+        assert_eq!(
+            parse_git_describe("v1.0.0-beta.1-3-g12345678"),
+            "v1.0.0-beta.1▴3∷12345678"
+        );
+        assert_eq!(
+            parse_git_describe("release-2026-10-0-gabcdef01"),
+            "release-2026-10∷abcdef01"
+        );
+    }
 }
