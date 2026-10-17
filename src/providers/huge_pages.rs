@@ -1,80 +1,38 @@
 use crate::{chunk::Chunk, options::Options};
 use smallvec::SmallVec;
-use smol_str::{format_smolstr, SmolStr};
-use std::path::Path;
-use tokio::fs;
+use smol_str::{format_smolstr, SmolStr, SmolStrBuilder};
 
-pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
-    if !opts.huge_pages {
-        return None;
-    }
-    let huge_pages = get_hugepages_status().await;
-    if let Some(huge_pages) = huge_pages {
-        let formatted = huge_pages
-            .iter()
-            .flat_map(|hp| &hp.pages)
-            .map(|page| format_smolstr!("{}x{}", page.count, format_kb(page.size_kb)))
-            .collect::<SmallVec<[SmolStr; 4]>>()
-            .join(",");
-
-        Some(Chunk::new(
-            opts.select_str("⎘", "\u{f0d7f}"),
-            SmolStr::new(formatted),
-        ))
-    } else {
-        None
-    }
-}
-
-/// Contains information about a specific size of huge pages for a NUMA node.
+/// Contains information about a specific size of huge pages.
 #[derive(Debug)]
 pub struct HugePageInfo {
     pub size_kb: u64,
     pub count: u64,
 }
 
-/// Represents all huge page configurations for a single NUMA node.
-/// If `node` is None, it represents a non-NUMA system.
-#[derive(Debug)]
-#[allow(dead_code)]
-pub struct HugePage {
-    pub node: Option<u32>,
-    pub pages: SmallVec<[HugePageInfo; 4]>,
-}
+#[cfg(target_os = "linux")]
+pub fn get_hugepages_status() -> Option<SmallVec<[HugePageInfo; 4]>> {
+    const HUGE_DIR: &str = "/sys/kernel/mm/hugepages";
 
-/// Processes a specific hugepages directory (either system-wide or per-node)
-/// and collects information about allocated pages.
-async fn process_hugepage_dir(path: &Path, node: Option<u32>) -> Option<HugePage> {
-    // This vector will store details for each page size (e.g., 2MB, 1GB).
-    let mut pages_info = SmallVec::<[_; 4]>::new();
+    let mut pages_info = SmallVec::<[HugePageInfo; 4]>::new();
+    let entries = std::fs::read_dir(HUGE_DIR).ok()?;
 
-    // Read the directory content, continue only if successful.
-    if let Ok(mut entries) = fs::read_dir(path).await {
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            let file_name = entry.file_name();
-            let file_name_str = match file_name.to_str() {
-                Some(s) => s,
-                None => continue, // Skip if the filename is not valid UTF-8.
-            };
+    for entry in entries.flatten() {
+        let file_name = entry.file_name();
+        let Some(file_name_str) = file_name.to_str() else {
+            continue;
+        };
 
-            // Kernel directories are named like "hugepages-2048kB".
-            if file_name_str.starts_with("hugepages-") {
-                // Extract size in KB from the directory name.
-                if let Some(size_str) = file_name_str
-                    .strip_prefix("hugepages-")
-                    .and_then(|s| s.strip_suffix("kB"))
-                {
-                    if let Ok(size_kb) = size_str.parse::<u64>() {
-                        // Path to the file that contains the number of allocated pages.
-                        let nr_hugepages_path = entry.path().join("nr_hugepages");
-
-                        if let Ok(content) = fs::read_to_string(nr_hugepages_path).await {
-                            // Parse the number of pages.
-                            if let Ok(count) = content.trim().parse::<u64>() {
-                                if count > 0 {
-                                    pages_info.push(HugePageInfo { size_kb, count });
-                                }
-                            }
+        // Kernel directories are named like "hugepages-2048kB".
+        if let Some(size_str) = file_name_str
+            .strip_prefix("hugepages-")
+            .and_then(|s| s.strip_suffix("kB"))
+        {
+            if let Ok(size_kb) = size_str.parse::<u64>() {
+                let nr_hugepages_path = entry.path().join("nr_hugepages");
+                if let Ok(content) = std::fs::read_to_string(nr_hugepages_path) {
+                    if let Ok(count) = content.trim().parse::<u64>() {
+                        if count > 0 {
+                            pages_info.push(HugePageInfo { size_kb, count });
                         }
                     }
                 }
@@ -82,66 +40,40 @@ async fn process_hugepage_dir(path: &Path, node: Option<u32>) -> Option<HugePage
         }
     }
 
-    if !pages_info.is_empty() {
-        Some(HugePage {
-            node,
-            pages: pages_info,
-        })
-    } else {
+    if pages_info.is_empty() {
         None
+    } else {
+        pages_info.sort_unstable_by_key(|p| p.size_kb);
+        Some(pages_info)
     }
 }
 
-/// Scans the system for huge page configurations and returns their status.
-///
-/// It checks for NUMA support and scans either per-node directories or the
-/// global hugepages directory.
-/// Returns `Some(Vec<HugePage>)` if configurations are found, otherwise `None`.
-pub async fn get_hugepages_status() -> Option<SmallVec<[HugePage; 4]>> {
-    const NUMA_NODE_BASE_DIR: &str = "/sys/devices/system/node";
-    const NO_NUMA_HUGE_DIR: &str = "/sys/kernel/mm/hugepages";
+#[cfg(not(target_os = "linux"))]
+pub fn get_hugepages_status() -> Option<SmallVec<[HugePageInfo; 4]>> {
+    None
+}
 
-    let mut hugepages = SmallVec::<[_; 4]>::new();
-
-    // Check if the system supports NUMA by checking for the base directory's existence.
-    if Path::new(NUMA_NODE_BASE_DIR).exists() {
-        // NUMA system: iterate through node directories (e.g., node0, node1, ...).
-        if let Ok(mut entries) = fs::read_dir(NUMA_NODE_BASE_DIR).await {
-            while let Ok(Some(entry)) = entries.next_entry().await {
-                let file_name = entry.file_name();
-                let file_name_str = match file_name.to_str() {
-                    Some(s) => s,
-                    None => continue,
-                };
-
-                // Check if the directory name matches the "nodeX" pattern.
-                if let Some(node_id) = file_name_str.strip_prefix("node") {
-                    if let Ok(node_id) = node_id.parse::<u32>() {
-                        let hugepages_path = entry.path().join("hugepages");
-                        if let Some(hp) = process_hugepage_dir(&hugepages_path, Some(node_id)).await
-                        {
-                            hugepages.push(hp);
-                        }
-                    }
-                }
-            }
+pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
+    if !opts.huge_pages {
+        return None;
+    }
+    let huge_pages = get_hugepages_status()?;
+    let mut builder = SmolStrBuilder::new();
+    for (i, page) in huge_pages.iter().enumerate() {
+        if i > 0 {
+            builder.push(',');
         }
-    } else {
-        // Non-NUMA system: check the single global directory.
-        let path = Path::new(NO_NUMA_HUGE_DIR);
-        if let Some(hp) = process_hugepage_dir(path, None).await {
-            hugepages.push(hp);
-        }
+        builder.push_str(&format_smolstr!("{}x{}", page.count, format_kb(page.size_kb)));
     }
 
-    if hugepages.is_empty() {
-        None
-    } else {
-        Some(hugepages)
-    }
+    Some(Chunk::new(
+            opts.select_str("⎘", "\u{f0d7f}"),
+        builder.finish(),
+    ))
 }
 
 /// Helper function to format size in kilobytes into a human-readable string (KB, MB, GB).
+#[allow(dead_code)]
 fn format_kb(kb: u64) -> SmolStr {
     if kb < 1024 {
         format_smolstr!("{}KB", kb)
