@@ -17,7 +17,7 @@ pub struct Jj;
 
 impl VcsTrait for Jj {
     async fn branch(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        jj!("log", "--color", "never", "--no-pager")
+        jj!("log", "--limit", "1", "--color", "never", "--no-pager")
             .await
             .and_then(|status| {
                 let branch = status
@@ -37,23 +37,14 @@ impl VcsTrait for Jj {
         let status = jj!("status", "--color", "never", "--no-pager").await?;
         let working_copy = status
             .lines()
-            .filter(|l| l.starts_with("Working copy") && l.contains("(@)"))
-            .collect::<SmallVec<[_; 8]>>()
-            .into_iter()
-            .next()?;
-        let tokens = working_copy
-            .split_whitespace()
-            .collect::<SmallVec<[_; 8]>>();
-        if tokens.len() >= 6 {
-            let change_id = tokens[4];
-            let commit_id = tokens[5];
-            Some(Chunk::new(
-                "⭑",
-                format_smolstr!("{} {}", change_id, commit_id),
-            ))
-        } else {
-            None
-        }
+            .find(|l| l.starts_with("Working copy") && l.contains("(@)"))?;
+        let mut tokens = working_copy.split_whitespace();
+        let change_id = tokens.nth(4)?;
+        let commit_id = tokens.next()?;
+        Some(Chunk::new(
+            "⭑",
+            format_smolstr!("{} {}", change_id, commit_id),
+        ))
     }
 
     async fn status(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
@@ -63,7 +54,7 @@ impl VcsTrait for Jj {
                 let icons = merge_icons(
                     status
                         .lines()
-                        .filter(|l| &l[1..2] == " ")
+                        .filter(|l| l.as_bytes().get(1) == Some(&b' '))
                         .map(|line| line.parse::<StatusIcon<Jj>>().unwrap())
                         .collect::<SmallVec<[_; 8]>>(),
                 );
@@ -75,7 +66,7 @@ impl VcsTrait for Jj {
     }
 
     async fn worktree(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        jj!("log", "--color", "never", "--no-pager")
+        jj!("log", "--limit", "1", "--color", "never", "--no-pager")
             .await
             .and_then(|status| {
                 let mut tokens = status.lines().next()?.split_whitespace();
