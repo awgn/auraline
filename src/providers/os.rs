@@ -84,15 +84,45 @@ static OS_MAP: phf::Map<&'static str, OsInfo> = phf_map! {
     "zorin" => OsInfo { icon: "", color: "#14A1E8", cterm_color: "39", name: "Zorin" },
 };
 
+fn parse_os_release_icon(os_release: &str) -> Option<&'static str> {
+    let mut id = None;
+    let mut id_like = None;
+
+    for line in os_release.lines() {
+        let line = line.trim();
+        if let Some(val) = line.strip_prefix("ID=") {
+            id = Some(val.trim_matches(['"', '\'']));
+        } else if let Some(val) = line.strip_prefix("ID_LIKE=") {
+            id_like = Some(val.trim_matches(['"', '\'']));
+        }
+        if id.is_some() && id_like.is_some() {
+            break;
+        }
+    }
+
+    if let Some(id) = id {
+        if let Some(info) = OS_MAP.get(id) {
+            return Some(info.icon);
+        }
+    }
+
+    if let Some(id_like) = id_like {
+        for candidate in id_like.split_whitespace() {
+            if let Some(info) = OS_MAP.get(candidate) {
+                return Some(info.icon);
+            }
+        }
+    }
+
+    OS_MAP.get("linux").map(|info| info.icon)
+}
+
 // see few examples @ https://gist.github.com/natefoo/814c5bf936922dad97ff
 pub async fn lsb_icon() -> Option<Chunk<Unit>> {
-    let os_release = tokio::fs::read_to_string("/etc/os-release").await.ok()?;
-    let id_line = os_release.lines().find(|line| line.starts_with("ID="))?;
-    let id = id_line.trim_start_matches("ID=").trim_matches('"');
-    OS_MAP
-        .get(id)
-        .map(|info| Chunk::icon(info.icon))
-        .or_else(|| OS_MAP.get("linux").map(|info| Chunk::icon(info.icon)))
+    let os_release = std::fs::read_to_string("/etc/os-release")
+        .or_else(|_| std::fs::read_to_string("/usr/lib/os-release"))
+        .ok()?;
+    parse_os_release_icon(&os_release).map(Chunk::icon)
 }
 
 pub async fn show(opts: &Options) -> Option<Chunk<Unit>> {
