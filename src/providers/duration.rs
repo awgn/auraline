@@ -14,8 +14,8 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
         .ok()?
         .as_nanos();
     let ppid = unsafe { libc::getppid() };
-    let (cmd_start_time, start_time_str) = read_start_file(ppid)
-        .or_else(|| parent_pid(ppid).and_then(read_start_file))?;
+    let (cmd_start_time, start_time_str) =
+        read_start_file(ppid).or_else(|| parent_pid(ppid).and_then(read_start_file))?;
     defer! {
         let _ = std::fs::remove_file(&cmd_start_time);
     };

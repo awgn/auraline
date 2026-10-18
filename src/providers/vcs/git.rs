@@ -1,4 +1,4 @@
-use crate::chunk::Chunk;
+use crate::chunk::{Adjoin, Chunk};
 use crate::providers::vcs::{merge_icons, StatusIcon, VcsTrait};
 use crate::style::{to_subscript, to_superscript};
 use crate::{cmd::CMD, options::Options};
@@ -212,8 +212,12 @@ impl VcsTrait for Git {
         }
     }
 
-    async fn action(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        self.get_action().map(Chunk::info)
+    async fn action(
+        &self,
+        _opts: &Options,
+        _path: &Path,
+    ) -> Option<Chunk<Adjoin<&'static str, SmolStr>>> {
+        self.get_action().map(|a| Chunk::info(Adjoin(("⚡", a))))
     }
 
     async fn commit(&self, opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {

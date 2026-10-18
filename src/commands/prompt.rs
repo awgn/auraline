@@ -114,12 +114,7 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
     // trailing non-VCS tasks that must appear after VCS in the output.
     let vcs_tasks = hlist![
         item_vcs![vcs, <Vcs as VcsTrait>::branch, opts, (bold, color.bold())],
-        item_vcs![
-            vcs,
-            <Vcs as VcsTrait>::action,
-            opts,
-            (bold.yellow(), bold.yellow())
-        ],
+        item_vcs![vcs, <Vcs as VcsTrait>::action, opts, (bold, color.italic())],
         item_vcs![vcs, <Vcs as VcsTrait>::status, opts, (bold, color)],
         item_vcs![vcs, <Vcs as VcsTrait>::stash, opts, (bold, def)],
         item_vcs![

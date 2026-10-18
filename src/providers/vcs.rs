@@ -6,7 +6,11 @@ pub mod pijul;
 
 use std::path::{Path, PathBuf};
 
-use crate::{chunk::Chunk, options::Options, style::to_superscript};
+use crate::{
+    chunk::{Adjoin, Chunk},
+    options::Options,
+    style::to_superscript,
+};
 
 use crate::providers::vcs::darcs::Darcs;
 use crate::providers::vcs::git::Git;
@@ -22,7 +26,11 @@ use smol_str::{SmolStr, SmolStrBuilder};
 #[enum_dispatch]
 pub trait VcsTrait {
     async fn branch(&self, opts: &Options, path: &Path) -> Option<Chunk<SmolStr>>;
-    async fn action(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+    async fn action(
+        &self,
+        _opts: &Options,
+        _path: &Path,
+    ) -> Option<Chunk<Adjoin<&'static str, SmolStr>>> {
         None
     }
     async fn commit(&self, opts: &Options, path: &Path) -> Option<Chunk<SmolStr>>;
