@@ -15,21 +15,23 @@ macro_rules! jj {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Jj;
 
+fn parse_jj_branch(line: &str) -> Option<SmolStr> {
+    let branch = line.split_whitespace().rev().nth(1)?.trim();
+    let s = branch
+        .strip_suffix('*')
+        .or_else(|| branch.strip_suffix('?'))
+        .unwrap_or(branch);
+    (!s.is_empty()).then(|| SmolStr::new(s))
+}
+
 impl VcsTrait for Jj {
     async fn branch(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
         jj!("log", "--limit", "1", "--color", "never", "--no-pager")
             .await
             .and_then(|status| {
-                let branch = status
-                    .lines()
-                    .next()?
-                    .split_whitespace()
-                    .rev()
-                    .nth(1)?
-                    .trim();
-
-                let s = &branch[..branch.len() - 1];
-                Some(Chunk::new("jj ⎇", SmolStr::new(s)))
+                let first_line = status.lines().next()?;
+                let s = parse_jj_branch(first_line)?;
+                Some(Chunk::new("jj ⎇", s))
             })
     }
 
@@ -55,7 +57,7 @@ impl VcsTrait for Jj {
                     status
                         .lines()
                         .filter(|l| l.as_bytes().get(1) == Some(&b' '))
-                        .map(|line| line.parse::<StatusIcon<Jj>>().unwrap())
+                        .filter_map(|line| line.parse::<StatusIcon<Jj>>().ok())
                         .collect::<SmallVec<[_; 8]>>(),
                 );
                 if icons.is_empty() {
@@ -100,5 +102,32 @@ impl FromStr for StatusIcon<Jj> {
             Some("D") => Ok(StatusIcon::new("−")),
             _ => Ok(StatusIcon::new("")), // Unknown state
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_jj_branch;
+
+    #[test]
+    fn test_parse_jj_branch_safe() {
+        assert_eq!(
+            parse_jj_branch("@  qpvuntsm user@example.com 2026-10-18 07:00:00 main* 12345678")
+                .as_deref(),
+            Some("main")
+        );
+        assert_eq!(
+            parse_jj_branch("@  qpvuntsm user@example.com 2026-10-18 07:00:00 main 12345678")
+                .as_deref(),
+            Some("main")
+        );
+        // Multi-byte UTF-8 character at the end must not panic
+        assert_eq!(
+            parse_jj_branch("@  qpvuntsm user@example.com 2026-10-18 07:00:00 🚀 12345678")
+                .as_deref(),
+            Some("🚀")
+        );
+        // Single character token must not return empty string
+        assert_eq!(parse_jj_branch("@ * 12345678"), None);
     }
 }
