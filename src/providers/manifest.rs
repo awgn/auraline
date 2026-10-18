@@ -582,6 +582,24 @@ fn get_cache_path() -> &'static std::path::Path {
     })
 }
 
+/// Computes a lightweight context key for `lang` that includes the current working
+/// directory and active environment variables (e.g. `VIRTUAL_ENV`, `PATH`),
+/// preventing stale cached tool versions when switching directories or virtualenvs.
+fn cache_key_for_lang(lang: Language) -> SmolStr {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    if let Ok(cwd) = std::env::current_dir() {
+        cwd.hash(&mut hasher);
+    }
+    if let Ok(venv) = std::env::var("VIRTUAL_ENV") {
+        venv.hash(&mut hasher);
+    }
+    if let Some(path) = std::env::var_os("PATH") {
+        path.hash(&mut hasher);
+    }
+    format_smolstr!("{:?}@{:x}", lang, hasher.finish())
+}
+
 fn read_cached_version(lang: Language) -> Option<SmolStr> {
     let cache_path = get_cache_path();
     let content = std::fs::read_to_string(cache_path).ok()?;
@@ -590,14 +608,14 @@ fn read_cached_version(lang: Language) -> Option<SmolStr> {
         .ok()?
         .as_secs();
 
-    let lang_name = format_smolstr!("{:?}", lang);
+    let key = cache_key_for_lang(lang);
 
     for line in content.lines() {
         let mut parts = line.splitn(3, ':');
         let name = parts.next()?;
         let version = parts.next()?;
         let timestamp_str = parts.next()?;
-        if name == lang_name.as_str() {
+        if name == key.as_str() {
             let timestamp: u64 = timestamp_str.parse().ok()?;
             if now >= timestamp && now - timestamp < CACHE_TTL_SECS {
                 return Some(SmolStr::new(version));
@@ -614,21 +632,21 @@ fn write_cached_version(lang: Language, version: &str) -> Option<()> {
         .ok()?
         .as_secs();
 
-    let lang_name = format_smolstr!("{:?}", lang);
+    let key = cache_key_for_lang(lang);
     let mut lines = Vec::new();
 
     if let Ok(content) = std::fs::read_to_string(cache_path) {
         for line in content.lines() {
             let mut parts = line.splitn(3, ':');
             if let Some(name) = parts.next() {
-                if name != lang_name.as_str() {
+                if name != key.as_str() {
                     lines.push(line.to_string());
                 }
             }
         }
     }
 
-    lines.push(format!("{}:{}:{}", lang_name, version, now));
+    lines.push(format!("{}:{}:{}", key, version, now));
 
     let temp_path = cache_path.with_extension(format!("tmp.{}", std::process::id()));
     std::fs::write(&temp_path, lines.join("\n")).ok()?;
@@ -664,7 +682,10 @@ async fn build_system_version_uncached(lang: Language) -> Option<SmolStr> {
             Some(SmolStr::new(v.strip_prefix("go").unwrap_or(v)))
         }
         Language::Python => {
-            let out = CMD.exec("python", ["--version"]).await?;
+            let out = match CMD.exec("python", ["--version"]).await {
+                Some(out) => out,
+                None => CMD.exec("python3", ["--version"]).await?,
+            };
             let v = out.split_whitespace().nth(1)?;
             Some(SmolStr::new(v))
         }
