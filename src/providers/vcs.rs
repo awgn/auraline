@@ -78,15 +78,15 @@ pub async fn infer_vcs(start: PathBuf, opts: &Options) -> Option<(Vcs, PathBuf)>
 
     let mut dir = start.canonicalize().ok()?;
     loop {
+        if dir.join(".jj").exists() {
+            return Some((Vcs::Jj(Jj), dir));
+        }
         if dir.join(".git").exists() {
             let git = Git::new(&dir)?;
             return Some((Vcs::Git(git), dir));
         }
         if dir.join(".pijul").exists() {
             return Some((Vcs::Pijul(Pijul), dir));
-        }
-        if dir.join(".jj").exists() {
-            return Some((Vcs::Jj(Jj), dir));
         }
         if dir.join(".hg").exists() {
             return Some((Vcs::Hg(Hg), dir));
