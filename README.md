@@ -62,12 +62,14 @@ Options:
   -n, --netif                  Show network interfaces
   -N, --netns                  Show network namespace info
   -m, --memory                 Show memory usage info
+  -k, --disk                   Show disk usage info
   -l, --load                   Show system load average info
   -H, --huge-pages             Show HugePages info
   -M, --manifest               Show development package info in the current directory
   -e, --duration               Show the duration of the last command
       --exit-code <EXIT_CODE>  Specify the exit-code of the last command to show
-      --timings                Enable timings mode (dev)\n      --theme <THEME>          Specify the theme color
+      --timings                Enable timings mode (dev)
+      --theme <THEME>          Specify the theme color
       --nerd-font              Use Nerd Fonts
       --profile <PROFILE>      Specify the prompt profile to use: minimal, lean, nerdy
 ```
@@ -105,8 +107,8 @@ Profiles
 | Profile   | Enabled Providers | Nerd Fonts |
 |-----------|-------------------|------------|
 | `minimal` | `user`, `hostname`, `pwd` *(default)* | No |
-| `lean`    | `user`, `hostname`, `pwd`, `memory`, `load`, `ssh`, `sudo`, `netif`, `duration`, `exit_code` | No |
-| `nerdy`   | `user`, `hostname`, `pwd`, `os`, `virt`, `memory`, `huge_pages`, `load`, `ssh`, `sudo`, `netif`, `netns`, `manifest`, `vcs`, `duration`, `exit_code` | Yes |
+| `lean`    | `user`, `hostname`, `pwd`, `memory`, `disk`, `load`, `ssh`, `sudo`, `netif`, `duration`, `exit_code` | No |
+| `nerdy`   | `user`, `hostname`, `pwd`, `os`, `virt`, `memory`, `disk`, `huge_pages`, `load`, `ssh`, `sudo`, `netif`, `netns`, `manifest`, `vcs`, `duration`, `exit_code` | Yes |
 
 Theme Colors
 ------------
@@ -161,6 +163,7 @@ Automatically walks parent directories to detect the active repository (prioriti
 - **OS** (`-o`, `--os`): OS / distribution Nerd Font icon (supports 60+ Linux distributions, BSD variants, macOS, Windows)
 - **Sudo** (`-S`, `--sudo`): Displays an indicator (`⚡` or `󰌋` with `--nerd-font`) when the current session is running as `root` or has active cached `sudo` credentials
 - **Memory** (`-m`, `--memory`): Memory usage percentage
+- **Disk** (`-k`, `--disk`): Disk usage percentage for the current working directory's filesystem (`⛁` or `󰋊` with `--nerd-font`)
 - **HugePages** (`-H`, `--huge-pages`): Linux HugePages allocation by page size, with per-NUMA-node subscript breakdown on multi-socket systems (e.g. `₀8x2MB,₁8x2MB`)
 - **Load Average** (`-l`, `--load`): 1-minute system load average (`λ1.45`)
 - **SSH** (`-s`, `--ssh`): Active SSH session indicator with remote client IP and port

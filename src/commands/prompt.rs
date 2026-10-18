@@ -22,6 +22,7 @@ use crate::providers::duration::show as duration_show;
 use crate::providers::exit_code::show as exit_code_show;
 
 use crate::chunk::Chunk;
+use crate::providers::disk::show as disk_show;
 use crate::providers::huge_pages::show as huge_pages_show;
 use crate::providers::load::show as load_show;
 use crate::providers::manifest::show as manifest_show;
@@ -92,7 +93,7 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
     // Phase 1: spawn all non-VCS tasks immediately — they will run while
     // infer_vcs walks the filesystem in the next step.
     let pre_vcs = hlist![
-        item![sudo_show, opts, (bold, bold)],
+        item![sudo_show, opts, (bold.yellow(), bold)],
         item![user, opts, (color, bold)],
         item![realname, opts, (color, bold)],
         item![hostname, opts, (color, bold.dimmed())],
@@ -103,6 +104,7 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
         item![os_show, opts, (color, bold)],
         item![virt_show, opts, (bold, bold)],
         item![memory_show, opts, (bold, bold)],
+        item![disk_show, opts, (bold, bold)],
         item![huge_pages_show, opts, (bold, bold)],
         item![load_show, opts, (bold, bold)],
         item![ssh_show, opts, (bold, def)],
