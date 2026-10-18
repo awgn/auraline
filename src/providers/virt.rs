@@ -1,6 +1,7 @@
 use crate::{chunk::Chunk, cmd::CMD, options::Options};
 use phf::phf_map;
 use smol_str::{SmolStr, ToSmolStr};
+use std::path::Path;
 
 #[allow(dead_code)]
 pub struct VirtualizationInfo {
@@ -53,17 +54,48 @@ static VIRTUALIZATION_MAP: phf::Map<&'static str, VirtualizationInfo> = phf_map!
     "container-other" => VirtualizationInfo { icon: "", color: "#A0A0A0", cterm_color: "247", name: "Unknown Container" },
 };
 
+/// Fast-path detection of common containers and WSL without spawning a subprocess.
+fn detect_virt_fast() -> Option<SmolStr> {
+    if Path::new("/run/.containerenv").exists() {
+        return Some(SmolStr::new_static("podman"));
+    }
+    if Path::new("/.dockerenv").exists() {
+        return Some(SmolStr::new_static("docker"));
+    }
+    if let Ok(c) = std::env::var("container") {
+        let c = c.trim();
+        if !c.is_empty() {
+            return Some(SmolStr::new(c));
+        }
+    }
+    if std::env::var_os("WSL_DISTRO_NAME").is_some() || std::env::var_os("WSL_INTEROP").is_some() {
+        return Some(SmolStr::new_static("wsl"));
+    }
+    if let Ok(osrelease) = std::fs::read_to_string("/proc/sys/kernel/osrelease") {
+        let lower = osrelease.to_ascii_lowercase();
+        if lower.contains("microsoft") || lower.contains("wsl") {
+            return Some(SmolStr::new_static("wsl"));
+        }
+    }
+    None
+}
+
 pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     if !opts.virt {
         return None;
     }
 
-    let virt = CMD
-        .exec::<_, &'static str>("systemd-detect-virt", [])
-        .await?;
+    let virt = match detect_virt_fast() {
+        Some(v) => v,
+        None => {
+            CMD.exec::<_, &'static str>("systemd-detect-virt", [])
+                .await?
+        }
+    };
+
     let icon = match virt {
         ref v if v == "none" => None, // No virtualization detected; return None
-        ref v => VIRTUALIZATION_MAP.get(v).map(|info| info.icon),
+        ref v => VIRTUALIZATION_MAP.get(v.as_str()).map(|info| info.icon),
     };
 
     icon.map(|icon| {
