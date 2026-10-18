@@ -19,6 +19,7 @@ pub struct Git {
     git_dir: PathBuf,
     common_dir: PathBuf,
     local_branch: Option<SmolStr>,
+    head_hash: Option<SmolStr>,
 }
 
 struct ParsedBranchInfo {
@@ -73,6 +74,43 @@ fn parse_branch_line(line: &str) -> Option<ParsedBranchInfo> {
     })
 }
 
+fn dir_has_any_file(dir: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() || (path.is_dir() && dir_has_any_file(&path)) {
+            return true;
+        }
+    }
+    false
+}
+
+fn resolve_ref_short_hash(common_dir: &Path, ref_name: &str) -> Option<SmolStr> {
+    let ref_file = common_dir.join(ref_name);
+    if let Ok(content) = std::fs::read_to_string(ref_file) {
+        let hash = content.lines().next()?.trim();
+        if hash.len() >= 8 {
+            return Some(SmolStr::new(&hash[..8]));
+        }
+    }
+
+    let packed = std::fs::read_to_string(common_dir.join("packed-refs")).ok()?;
+    for line in packed.lines() {
+        if line.starts_with('#') || line.starts_with('^') {
+            continue;
+        }
+        let mut parts = line.split_whitespace();
+        let hash = parts.next()?;
+        let r = parts.next()?;
+        if r == ref_name && hash.len() >= 8 {
+            return Some(SmolStr::new(&hash[..8]));
+        }
+    }
+    None
+}
+
 impl Git {
     pub fn new(repo_root: &Path) -> Option<Self> {
         let dot_git = repo_root.join(".git");
@@ -91,17 +129,6 @@ impl Git {
             return None;
         };
 
-        let local_branch = std::fs::read_to_string(git_dir.join("HEAD"))
-            .ok()
-            .and_then(|content| {
-                let line = content.lines().next()?;
-                if let Some(branch) = line.strip_prefix("ref: refs/heads/") {
-                    Some(SmolStr::new(branch.trim()))
-                } else {
-                    Some(SmolStr::new_static("HEAD"))
-                }
-            });
-
         let common_dir = std::fs::read_to_string(git_dir.join("commondir"))
             .ok()
             .and_then(|content| {
@@ -117,10 +144,30 @@ impl Git {
             })
             .unwrap_or_else(|| git_dir.clone());
 
+        let (local_branch, head_hash) = std::fs::read_to_string(git_dir.join("HEAD"))
+            .ok()
+            .and_then(|content| {
+                let line = content.lines().next()?.trim();
+                if let Some(ref_path) = line.strip_prefix("ref: ") {
+                    let ref_path = ref_path.trim();
+                    let branch = ref_path
+                        .strip_prefix("refs/heads/")
+                        .map(SmolStr::new)
+                        .unwrap_or_else(|| SmolStr::new(ref_path));
+                    let hash = resolve_ref_short_hash(&common_dir, ref_path);
+                    Some((Some(branch), hash))
+                } else {
+                    let short = (line.len() >= 8).then(|| SmolStr::new(&line[..8]));
+                    Some((Some(SmolStr::new_static("HEAD")), short))
+                }
+            })
+            .unwrap_or((None, None));
+
         Some(Self {
             git_dir,
             common_dir,
             local_branch,
+            head_hash,
         })
     }
 
@@ -139,6 +186,18 @@ impl Git {
         } else {
             0
         }
+    }
+
+    fn has_tags(&self) -> bool {
+        if dir_has_any_file(&self.common_dir.join("refs/tags")) {
+            return true;
+        }
+        if let Ok(packed) = std::fs::read_to_string(self.common_dir.join("packed-refs")) {
+            if packed.contains("refs/tags/") {
+                return true;
+            }
+        }
+        false
     }
 
     fn get_action(&self) -> Option<SmolStr> {
@@ -220,21 +279,26 @@ impl VcsTrait for Git {
     }
 
     async fn commit(&self, opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        let branch_name = self
-            .local_branch
-            .as_ref()
-            .filter(|s| s.as_str() != "HEAD" && !s.is_empty());
-
-        if let Some(c) = git_describe_cmd(opts).await {
-            return Some(Chunk::info(c));
+        if self.has_tags() {
+            if let Some(c) = git_describe_cmd(opts).await {
+                return Some(Chunk::info(c));
+            }
         }
 
-        let name_rev = git_name_rev(opts).await;
-        match (branch_name, name_rev) {
-            (_, None) => None,
-            (None, Some(nr)) => Some(Chunk::info(nr)),
-            (Some(b), Some(nr)) if git_bidirectional_inclusion(b, &nr) => None,
-            (Some(_), Some(nr)) => Some(Chunk::info(nr)),
+        let is_detached = self.local_branch.as_deref() == Some("HEAD");
+        let name_rev = if is_detached {
+            git_name_rev(opts)
+                .await
+                .filter(|nr| nr.as_str() != "undefined")
+        } else {
+            None
+        };
+
+        match (name_rev, self.head_hash.as_ref()) {
+            (Some(nr), Some(hash)) => Some(Chunk::info(format_smolstr!("{nr}∷{hash}"))),
+            (Some(nr), None) => Some(Chunk::info(nr)),
+            (None, Some(hash)) => Some(Chunk::info(format_smolstr!("HEAD∷{hash}"))),
+            (None, None) => None,
         }
     }
 
@@ -414,11 +478,6 @@ async fn git_name_rev(_opts: &Options) -> Option<SmolStr> {
     }
 }
 
-#[inline]
-fn git_bidirectional_inclusion(a: &SmolStr, b: &SmolStr) -> bool {
-    a.contains(b.as_str()) || b.contains(a.as_str())
-}
-
 #[cfg(test)]
 mod tests {
     use super::{parse_git_describe, Git};
@@ -452,6 +511,23 @@ mod tests {
 
         let git = Git::new(&tmp).unwrap();
         assert_eq!(git.get_action(), None);
+        assert!(!git.has_tags());
+
+        // Test tag detection via refs/tags
+        let tags_dir = git_dir.join("refs/tags");
+        std::fs::create_dir_all(&tags_dir).unwrap();
+        std::fs::write(tags_dir.join("v1.0.0"), "123456\n").unwrap();
+        assert!(git.has_tags());
+        std::fs::remove_dir_all(&tags_dir).unwrap();
+
+        // Test tag detection via packed-refs
+        std::fs::write(
+            git_dir.join("packed-refs"),
+            "# pack-refs with: peeled fully-peeled sorted\n1234567890abcdef refs/tags/v1.0.0\n",
+        )
+        .unwrap();
+        assert!(git.has_tags());
+        std::fs::remove_file(git_dir.join("packed-refs")).unwrap();
 
         // Test merge
         std::fs::write(git_dir.join("MERGE_HEAD"), "123456\n").unwrap();
