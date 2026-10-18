@@ -5,7 +5,6 @@ use crate::{cmd::CMD, options::Options};
 use smallvec::SmallVec;
 use smol_str::{format_smolstr, SmolStr, ToSmolStr};
 use std::convert::Infallible;
-use std::env;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -226,9 +225,7 @@ impl VcsTrait for Git {
             .as_ref()
             .filter(|s| s.as_str() != "HEAD" && !s.is_empty());
 
-        let descr = git_describe_cmd(opts).await;
-
-        if let Some(c) = descr {
+        if let Some(c) = git_describe_cmd(opts).await {
             return Some(Chunk::info(c));
         }
 
@@ -258,18 +255,22 @@ impl VcsTrait for Git {
             })
     }
 
-    async fn worktree(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+    async fn worktree(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
         if !self.common_dir.join("worktrees").is_dir() {
             return None;
         }
 
-        let path = env::current_dir().ok()?;
         let output = git!("worktree", "list").await?;
         output.lines().skip(1).find_map(|line| {
             let mut parts = line.split_whitespace();
-            let worktree_path = parts.next()?;
-            if path.starts_with(worktree_path) {
-                parts.next()?; // skip the branch
+            let worktree_path = Path::new(parts.next()?);
+            let matches = path.starts_with(worktree_path)
+                || worktree_path
+                    .canonicalize()
+                    .map(|canon| path.starts_with(&canon))
+                    .unwrap_or(false);
+            if matches {
+                parts.next()?; // skip the commit hash
                 let name = parts.collect::<SmallVec<[_; 8]>>().join(" ");
                 Some(Chunk::new("⌂", name.into()))
             } else {
@@ -387,7 +388,7 @@ fn parse_git_describe(s: &str) -> SmolStr {
 }
 
 async fn git_describe_cmd(_opts: &Options) -> Option<SmolStr> {
-    git!("describe", "--abbrev=8", "--always", "--tag", "--long")
+    git!("describe", "--abbrev=8", "--tags", "--long")
         .await
         .map(|s| parse_git_describe(&s))
 }
