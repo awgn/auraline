@@ -8,5 +8,6 @@ pub mod netif;
 pub mod netns;
 pub mod os;
 pub mod ssh;
+pub mod sudo;
 pub mod vcs;
 pub mod virt;

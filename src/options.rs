@@ -58,6 +58,9 @@ pub struct Options {
     #[clap(short('s'), long, help = "Show SSH info")]
     pub ssh: bool,
 
+    #[clap(short('S'), long, help = "Show cached sudo credentials status")]
+    pub sudo: bool,
+
     #[clap(short('o'), long, help = "Show OS info")]
     pub os: bool,
 
@@ -124,6 +127,7 @@ impl Semigroup for Options {
             full_pwd: self.full_pwd || other.full_pwd,
             vcs: self.vcs || other.vcs,
             ssh: self.ssh || other.ssh,
+            sudo: self.sudo || other.sudo,
             os: self.os || other.os,
             virt: self.virt || other.virt,
             netif: self.netif || other.netif,

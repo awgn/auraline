@@ -29,6 +29,7 @@ use crate::providers::netif::show as netif_show;
 use crate::providers::netns::show as net_namespace;
 use crate::providers::os::show as os_show;
 use crate::providers::ssh::show as ssh_show;
+use crate::providers::sudo::show as sudo_show;
 use crate::providers::vcs::{infer_vcs, Vcs, VcsTrait};
 use crate::providers::virt::show as virt_show;
 
@@ -90,6 +91,7 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
     // Phase 1: spawn all non-VCS tasks immediately — they will run while
     // infer_vcs walks the filesystem in the next step.
     let pre_vcs = hlist![
+        item![sudo_show, opts, (bold, bold)],
         item![user, opts, (color, bold)],
         item![realname, opts, (color, bold)],
         item![hostname, opts, (color, bold.dimmed())],
