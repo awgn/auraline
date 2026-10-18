@@ -9,7 +9,11 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     let info = sysinfo::System::new_with_specifics(
         RefreshKind::nothing().with_memory(MemoryRefreshKind::everything()),
     );
-    let mem_perc = info.used_memory() as f64 / info.total_memory() as f64 * 100.0;
+    let total = info.total_memory();
+    if total == 0 {
+        return None;
+    }
+    let mem_perc = info.used_memory() as f64 / total as f64 * 100.0;
     Some(Chunk::new(
         opts.select_str("μ", ""),
         format_smolstr!("{:.1}%", mem_perc),
