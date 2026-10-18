@@ -23,6 +23,7 @@ use crate::providers::exit_code::show as exit_code_show;
 
 use crate::chunk::Chunk;
 use crate::providers::huge_pages::show as huge_pages_show;
+use crate::providers::load::show as load_show;
 use crate::providers::manifest::show as manifest_show;
 use crate::providers::memory::show as memory_show;
 use crate::providers::netif::show as netif_show;
@@ -103,6 +104,7 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
         item![virt_show, opts, (bold, bold)],
         item![memory_show, opts, (bold, bold)],
         item![huge_pages_show, opts, (bold, bold)],
+        item![load_show, opts, (bold, bold)],
         item![ssh_show, opts, (bold, def)],
         item![netif_show, opts, (bold.dimmed(), def.dimmed())],
         item![net_namespace, opts, (bold, bold)],

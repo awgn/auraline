@@ -2,6 +2,7 @@ pub mod basic;
 pub mod duration;
 pub mod exit_code;
 pub mod huge_pages;
+pub mod load;
 pub mod manifest;
 pub mod memory;
 pub mod netif;

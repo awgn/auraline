@@ -76,6 +76,9 @@ pub struct Options {
     #[clap(short('m'), long, help = "Show memory usage info")]
     pub memory: bool,
 
+    #[clap(short('l'), long, help = "Show system load average info")]
+    pub load: bool,
+
     #[clap(short('H'), long, help = "Show HugePages info")]
     pub huge_pages: bool,
 
@@ -133,6 +136,7 @@ impl Semigroup for Options {
             netif: self.netif || other.netif,
             netns: self.netns || other.netns,
             memory: self.memory || other.memory,
+            load: self.load || other.load,
             huge_pages: self.huge_pages || other.huge_pages,
             manifest: self.manifest || other.manifest,
             duration: self.duration || other.duration,
