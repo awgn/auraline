@@ -7,7 +7,7 @@ use crate::{
 pub async fn hostname(opts: &Options) -> Option<Chunk<Adjoin<&'static str, String>>> {
     opts.hostname
         .then(|| {
-            whoami::fallible::hostname()
+            whoami::hostname()
                 .ok()
                 .map(|h| Chunk::info(Adjoin(("@", h))))
         })
@@ -18,7 +18,7 @@ pub async fn hostname(opts: &Options) -> Option<Chunk<Adjoin<&'static str, Strin
 pub async fn device_name(opts: &Options) -> Option<Chunk<String>> {
     opts.device_name
         .then(|| {
-            whoami::fallible::devicename()
+            whoami::devicename()
                 .ok()
                 .map(|d| Chunk::new("🖥", d))
         })
@@ -31,7 +31,7 @@ pub async fn user(opts: &Options) -> Option<Chunk<String>> {
         .then(|| {
             std::env::var("USER")
                 .ok()
-                .or_else(|| whoami::fallible::username().ok())
+                .or_else(|| whoami::username().ok())
                 .map(Chunk::info)
         })
         .flatten()
@@ -40,14 +40,14 @@ pub async fn user(opts: &Options) -> Option<Chunk<String>> {
 #[inline]
 pub async fn realname(opts: &Options) -> Option<Chunk<String>> {
     opts.realname
-        .then(|| whoami::fallible::realname().ok().map(Chunk::info))
+        .then(|| whoami::realname().ok().map(Chunk::info))
         .flatten()
 }
 
 #[inline]
 pub async fn distro(opts: &Options) -> Option<Chunk<String>> {
     opts.distro
-        .then(|| whoami::fallible::distro().ok().map(Chunk::info))
+        .then(|| whoami::distro().ok().map(Chunk::info))
         .flatten()
 }
 
