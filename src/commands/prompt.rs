@@ -18,6 +18,7 @@ use crate::providers::manifest::show as manifest_show;
 use crate::providers::memory::show as memory_show;
 use crate::providers::netif::show as netif_show;
 use crate::providers::netns::show as net_namespace;
+use crate::providers::nix::show as nix_show;
 use crate::providers::os::show as os_show;
 use crate::providers::ssh::show as ssh_show;
 use crate::providers::sudo::show as sudo_show;
@@ -93,6 +94,7 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
         item![opts.netif, netif_show, &opts, (bold.dimmed(), def.dimmed())],
         item![opts.netns, net_namespace, &opts, (bold, bold)],
         item![opts.k8s, k8s_show, &opts, (color, color.dimmed())],
+        item![opts.nix, nix_show, &opts, (color, color.dimmed())],
         item![opts.venv, venv_show, &opts, (color, color.dimmed())],
         item![opts.manifest, manifest_show, &opts, (color, color.dimmed())],
     ];

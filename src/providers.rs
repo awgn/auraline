@@ -9,6 +9,7 @@ pub mod manifest;
 pub mod memory;
 pub mod netif;
 pub mod netns;
+pub mod nix;
 pub mod os;
 pub mod ssh;
 pub mod sudo;

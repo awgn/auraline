@@ -82,6 +82,9 @@ pub struct Options {
     )]
     pub venv: bool,
 
+    #[clap(short('x'), long, help = "Show Nix shell / direnv environment info")]
+    pub nix: bool,
+
     #[clap(short('n'), long, help = "Show network interfaces")]
     pub netif: bool,
 
@@ -174,6 +177,7 @@ impl Options {
             || self.os
             || self.virt
             || self.venv
+            || self.nix
             || self.netif
             || self.netns
             || self.k8s
@@ -202,6 +206,7 @@ impl Semigroup for Options {
             os: self.os || other.os,
             virt: self.virt || other.virt,
             venv: self.venv || other.venv,
+            nix: self.nix || other.nix,
             netif: self.netif || other.netif,
             netns: self.netns || other.netns,
             k8s: self.k8s || other.k8s,
