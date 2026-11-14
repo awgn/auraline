@@ -113,6 +113,16 @@ pub struct Options {
     )]
     pub manifest: bool,
 
+    #[clap(short('j'), long, help = "Show background / suspended shell jobs")]
+    pub jobs: bool,
+
+    #[clap(
+        long,
+        hide = true,
+        help = "Number of background / suspended shell jobs (passed by shell hook)"
+    )]
+    pub jobs_count: Option<u32>,
+
     #[clap(short('e'), long, help = "Show the duration of the last command")]
     pub duration: bool,
 
@@ -186,6 +196,7 @@ impl Options {
             || self.load
             || self.huge_pages
             || self.manifest
+            || self.jobs
             || self.duration
     }
 }
@@ -215,6 +226,8 @@ impl Semigroup for Options {
             load: self.load || other.load,
             huge_pages: self.huge_pages || other.huge_pages,
             manifest: self.manifest || other.manifest,
+            jobs: self.jobs || other.jobs,
+            jobs_count: self.jobs_count.or(other.jobs_count),
             duration: self.duration || other.duration,
             duration_ns: self.duration_ns.or(other.duration_ns),
             exit_code: self.exit_code.or(other.exit_code),

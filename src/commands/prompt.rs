@@ -12,6 +12,7 @@ use crate::providers::disk::show as disk_show;
 use crate::providers::duration::show as duration_show;
 use crate::providers::exit_code::show as exit_code_show;
 use crate::providers::huge_pages::show as huge_pages_show;
+use crate::providers::jobs::show as jobs_show;
 use crate::providers::k8s::show as k8s_show;
 use crate::providers::load::show as load_show;
 use crate::providers::manifest::show as manifest_show;
@@ -136,6 +137,7 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
     };
 
     let post_vcs = hlist![
+        item![opts.jobs, jobs_show, &opts, (color, color.bold())],
         item![opts.duration, duration_show, &opts, (def, def.dimmed())],
         item![
             opts.exit_code.is_some(),

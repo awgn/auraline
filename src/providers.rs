@@ -3,6 +3,7 @@ pub mod disk;
 pub mod duration;
 pub mod exit_code;
 pub mod huge_pages;
+pub mod jobs;
 pub mod k8s;
 pub mod load;
 pub mod manifest;

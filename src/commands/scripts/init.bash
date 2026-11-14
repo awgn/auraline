@@ -9,6 +9,7 @@ auraline_pre_cmd_fallback() {
 auraline_prompt_cmd() {
     local exit_code=$?
     local -a dur_arg=()
+    local -a jobs_arg=()
 
     if [[ -n "${_auraline_start:-}" && -n "${EPOCHREALTIME:-}" ]]; then
         local now="${EPOCHREALTIME/[.,]/}000"
@@ -19,7 +20,21 @@ auraline_prompt_cmd() {
         _auraline_start=""
     fi
 
-    _auraline_prompt="$(__AURALINE_BIN__ prompt --shell bash --exit-code "$exit_code" ${dur_arg[@]+"${dur_arg[@]}"})"
+    local jobs_n=0
+    if (( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) )); then
+        local _j='\j'
+        eval 'jobs_n="${_j@P}"'
+    else
+        local _jp
+        for _jp in $(jobs -p); do
+            jobs_n=$(( jobs_n + 1 ))
+        done
+    fi
+    if (( jobs_n > 0 )); then
+        jobs_arg=(--jobs-count "$jobs_n")
+    fi
+
+    _auraline_prompt="$(__AURALINE_BIN__ prompt --shell bash --exit-code "$exit_code" ${dur_arg[@]+"${dur_arg[@]}"} ${jobs_arg[@]+"${jobs_arg[@]}"})"
     return "$exit_code"
 }
 

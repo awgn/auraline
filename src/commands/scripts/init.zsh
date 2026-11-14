@@ -11,6 +11,7 @@ auraline_preexec() {
 auraline_precmd() {
     local exit_code=$?
     local -a dur_arg=()
+    local -a jobs_arg=()
 
     if [[ -n "$_auraline_start" ]]; then
         local -i dur_ns=$(( (EPOCHREALTIME - _auraline_start) * 1000000000.0 ))
@@ -18,7 +19,10 @@ auraline_precmd() {
         _auraline_start=""
     fi
 
-    _auraline_prompt="$(__AURALINE_BIN__ prompt --shell zsh --exit-code "$exit_code" "${dur_arg[@]}")"
+    local -i jobs_n=${(%):-%j}
+    (( jobs_n > 0 )) && jobs_arg=(--jobs-count "$jobs_n")
+
+    _auraline_prompt="$(__AURALINE_BIN__ prompt --shell zsh --exit-code "$exit_code" "${dur_arg[@]}" "${jobs_arg[@]}")"
 }
 
 autoload -Uz add-zsh-hook

@@ -69,6 +69,7 @@ Options:
   -l, --load                   Show system load average info
   -H, --huge-pages             Show HugePages info
   -M, --manifest               Show development package info in the current directory
+  -j, --jobs                   Show background / suspended shell jobs
   -e, --duration               Show the duration of the last command
       --exit-code <EXIT_CODE>  Specify the exit-code of the last command to show
       --timings                Enable timings mode (dev)
@@ -110,8 +111,8 @@ Profiles
 | Profile   | Enabled Providers | Nerd Fonts |
 |-----------|-------------------|------------|
 | `minimal` | `user`, `hostname`, `pwd` *(default)* | No |
-| `lean`    | `user`, `hostname`, `pwd`, `memory`, `disk`, `load`, `ssh`, `sudo`, `netif`, `duration`, `exit_code` | No |
-| `nerdy`   | `user`, `hostname`, `pwd`, `os`, `virt`, `memory`, `disk`, `huge_pages`, `load`, `ssh`, `sudo`, `netif`, `netns`, `nix`, `venv`, `manifest`, `vcs`, `duration`, `exit_code` | Yes |
+| `lean`    | `user`, `hostname`, `pwd`, `memory`, `disk`, `load`, `ssh`, `sudo`, `netif`, `jobs`, `duration`, `exit_code` | No |
+| `nerdy`   | `user`, `hostname`, `pwd`, `os`, `virt`, `memory`, `disk`, `huge_pages`, `load`, `ssh`, `sudo`, `netif`, `netns`, `nix`, `venv`, `manifest`, `vcs`, `jobs`, `duration`, `exit_code` | Yes |
 
 Theme Colors
 ------------
@@ -183,6 +184,7 @@ Automatically walks parent directories to detect the active repository (prioriti
 - **Nix / Direnv** (`-x`, `--nix`): Active `nix develop` / `nix-shell` (`$IN_NIX_SHELL`, `$name`, `❄` or `` with `--nerd-font`) and `direnv` (`$DIRENV_DIR`, `▼ direnv` or `󰁿 direnv`).
 - **Virtualenv** (`-p`, `--venv`): Active Python (`$VIRTUAL_ENV` / `pyvenv.cfg`), Conda (`$CONDA_DEFAULT_ENV`), or Pixi (`$PIXI_ENVIRONMENT_NAME`) environment (`⏣` or `` with `--nerd-font`).
 - **Manifest** (`-M`, `--manifest`): Detects project manifest files in the current directory and displays both the toolchain/compiler version (cached per user and environment context in `/tmp`) and package version (`1.99.0 ↦ v0.15.0`). Supports 50+ languages and build systems including Rust (`Cargo.toml`), C/C++ (`CMakeLists.txt`, `meson.build`, `vcpkg.json`, `conanfile.py`, `xmake.lua`), Go (`go.mod`), Zig (`build.zig.zon`), Python (`pyproject.toml`, `setup.cfg`, `Pipfile`), Node.js/Deno/Bun (`package.json`, `deno.json`), Haskell (`*.cabal`, `stack.yaml`), OCaml (`dune-project`, `*.opam`), Java/Kotlin/Scala (`pom.xml`, `build.gradle`, `build.sbt`), Elixir (`mix.exs`), Dart (`pubspec.yaml`), C# (`*.csproj`), Common Lisp (`*.asd`), Lua (`*.rockspec`), and more.
+- **Jobs** (`-j`, `--jobs`): Count of active background or suspended shell jobs passed by the shell hook (`✦²` or `󰒲²` with `--nerd-font`).
 - **Duration** (`-e`, `--duration`): Execution time of the last interactive command (`ns`, `μs`, `ms`, `s`).
 - **Exit Code** (`--exit-code <EXIT_CODE>`): Displayed when the last command exits with a non-zero status (`✘ ¹²⁷`), automatically decoding fatal Unix signals (`129..`) into signal names (e.g. `✘ INT`, `✘ KILL`, `✘ SEGV`, `✘ TERM`).
 - **Timings** (`--timings`): Prints a per-provider execution latency breakdown for profiling and debugging.
