@@ -8,9 +8,9 @@ use std::convert::Infallible;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-macro_rules! git {
-    ( $( $x:expr ),* ) => {
-        CMD.exec("git", [$( $x ),*])
+macro_rules! git_in {
+    ( $path:expr, $( $x:expr ),* ) => {
+        CMD.exec_in(Some($path), "git", [$( $x ),*])
     };
 }
 
@@ -278,16 +278,16 @@ impl VcsTrait for Git {
         self.get_action().map(|a| Chunk::info(Adjoin(("⚡", a))))
     }
 
-    async fn commit(&self, opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+    async fn commit(&self, opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
         if self.has_tags() {
-            if let Some(c) = git_describe_cmd(opts).await {
+            if let Some(c) = git_describe_cmd(opts, path).await {
                 return Some(Chunk::info(c));
             }
         }
 
         let is_detached = self.local_branch.as_deref() == Some("HEAD");
         let name_rev = if is_detached {
-            git_name_rev(opts)
+            git_name_rev(opts, path)
                 .await
                 .filter(|nr| nr.as_str() != "undefined")
         } else {
@@ -302,8 +302,8 @@ impl VcsTrait for Git {
         }
     }
 
-    async fn status(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        git!("status", "--porcelain", "--branch")
+    async fn status(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
+        git_in!(path, "status", "--porcelain", "--branch")
             .await
             .and_then(|s| {
                 let icons = s
@@ -324,7 +324,7 @@ impl VcsTrait for Git {
             return None;
         }
 
-        let output = git!("worktree", "list").await?;
+        let output = git_in!(path, "worktree", "list").await?;
         output.lines().skip(1).find_map(|line| {
             let mut parts = line.split_whitespace();
             let worktree_path = Path::new(parts.next()?);
@@ -354,8 +354,8 @@ impl VcsTrait for Git {
         }
     }
 
-    async fn divergence(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        let status_out = git!("status", "--porcelain", "--branch").await?;
+    async fn divergence(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
+        let status_out = git_in!(path, "status", "--porcelain", "--branch").await?;
         let first_line = status_out.lines().next()?;
         let info = parse_branch_line(first_line)?;
 
@@ -451,14 +451,14 @@ fn parse_git_describe(s: &str) -> SmolStr {
     }
 }
 
-async fn git_describe_cmd(_opts: &Options) -> Option<SmolStr> {
-    git!("describe", "--abbrev=8", "--tags", "--long")
+async fn git_describe_cmd(_opts: &Options, path: &Path) -> Option<SmolStr> {
+    git_in!(path, "describe", "--abbrev=8", "--tags", "--long")
         .await
         .map(|s| parse_git_describe(&s))
 }
 
-async fn git_name_rev(_opts: &Options) -> Option<SmolStr> {
-    let result = git!("name-rev", "--name-only", "HEAD").await?;
+async fn git_name_rev(_opts: &Options, path: &Path) -> Option<SmolStr> {
+    let result = git_in!(path, "name-rev", "--name-only", "HEAD").await?;
     let s = result.as_str();
 
     let prefix_replaced = if let Some(stripped) = s.strip_prefix("remotes/origin/") {

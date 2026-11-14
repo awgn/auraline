@@ -46,9 +46,10 @@ macro_rules! item {
         let style = $style;
         tokio::spawn(async move {
             let begin = std::time::Instant::now();
+            let shell = cloned_opts.shell_mode();
             let res = $provider(&cloned_opts)
                 .await
-                .map(|c| c.with_style(style.0, style.1));
+                .map(|c| c.with_style(style.0, style.1, shell));
             (provider_name(&$provider), begin.elapsed(), res)
         })
     }};
@@ -61,11 +62,12 @@ macro_rules! item_vcs {
         let style = $style;
         tokio::spawn(async move {
             let begin = std::time::Instant::now();
+            let shell = cloned_opts.shell_mode();
 
             if let Some((vcs, path)) = vcs {
                 let res = $provider(&vcs, &cloned_opts, &path)
                     .await
-                    .map(|c| c.with_style(style.0, style.1));
+                    .map(|c| c.with_style(style.0, style.1, shell));
                 return (provider_name(&$provider), begin.elapsed(), res);
             }
 

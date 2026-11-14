@@ -354,19 +354,19 @@ static MANIFEST_MAP: phf::Map<&'static str, LanguageInfo> = phf_map! {
 /// Heuristic used to locate the version string inside a manifest file's content.
 #[derive(Clone, Copy)]
 enum VersionStrategy {
+    /// Search for `key = "..."` only inside specific TOML table sections (in priority order).
+    /// An empty section name `""` matches keys before the first `[table]` header.
+    TomlSectionQuoted(&'static [&'static str], &'static str),
+
+    /// Search for `key = value` (unquoted) inside specific INI sections.
+    IniSectionUnquoted(&'static [&'static str], &'static str),
+
     /// Search for a key, then a separator, then extract the quoted value.
     /// Ignores whitespace between key, separator, and value.
-    /// e.g. `KeyValueQuoted("version", ":")` for JSON, `KeyValueQuoted("version", "=")` for TOML.
+    /// e.g. `KeyValueQuoted("\"version\"", ":")` for JSON.
     KeyValueQuoted(&'static str, &'static str),
 
-    /// Search for a key, then a separator, then extract the unquoted value.
-    /// Ignores whitespace between key, separator, and value.
-    /// e.g. `KeyValueUnquoted("version", "=")` for setup.cfg.
-    KeyValueUnquoted(&'static str, &'static str),
-
     /// Find the first line whose start matches `prefix`, then extract the first `"…"` on it.
-    /// Use this when the same key appears inside dependency inline-tables on other lines.
-    /// e.g. `"version"` in Cargo.toml avoids matching `serde = { version = "1.0" }`.
     LinePrefixQuoted(&'static str),
 
     /// Find the first line whose start matches `prefix`, take the bare value after it
@@ -374,9 +374,9 @@ enum VersionStrategy {
     /// e.g. `"version:"` in .cabal / pubspec.yaml, `"(version "` in dune-project.
     LinePrefixUnquoted(&'static str),
 
-    /// Find `open` anywhere in the content; extract the text between `open` and `close`.
-    /// e.g. `("<version>", "</version>")` for pom.xml.
-    XmlBetween(&'static str, &'static str),
+    /// Extract Maven `<project><version>` at depth 1, ignoring `<parent>` / `<dependencies>`,
+    /// falling back to `<parent><version>` only when the project inherits its version.
+    PomXmlVersion,
 
     /// Search for `VERSION` inside a CMake project() declaration.
     CMakeVersion,
@@ -394,9 +394,20 @@ enum VersionStrategy {
 fn project_version_strategy(lang: Language, key: &str) -> Option<VersionStrategy> {
     use Language::*;
     match (lang, key) {
-        (Rust, _) | (Julia, _) | (Nim, _) => Some(VersionStrategy::LinePrefixQuoted("version")),
-        (Python, "pyproject.toml") => Some(VersionStrategy::KeyValueQuoted("version", "=")),
-        (Python, "setup.cfg") => Some(VersionStrategy::KeyValueUnquoted("version", "=")),
+        (Rust, _) => Some(VersionStrategy::TomlSectionQuoted(
+            &["package", "workspace.package"],
+            "version",
+        )),
+        (Julia, _) => Some(VersionStrategy::TomlSectionQuoted(&[""], "version")),
+        (Nim, _) => Some(VersionStrategy::LinePrefixQuoted("version")),
+        (Python, "pyproject.toml") => Some(VersionStrategy::TomlSectionQuoted(
+            &["project", "tool.poetry", "tool.flit.metadata"],
+            "version",
+        )),
+        (Python, "setup.cfg") => Some(VersionStrategy::IniSectionUnquoted(
+            &["metadata"],
+            "version",
+        )),
         (Lua, ".rockspec") => Some(VersionStrategy::LinePrefixQuoted("version")),
         (CCpp, "CMakeLists.txt") => Some(VersionStrategy::CMakeVersion),
         (D, "dub.sdl") => Some(VersionStrategy::LinePrefixQuoted("version")),
@@ -412,7 +423,7 @@ fn project_version_strategy(lang: Language, key: &str) -> Option<VersionStrategy
         (CommonLisp, _) => Some(VersionStrategy::LinePrefixQuoted(":version")),
         (Racket, _) => Some(VersionStrategy::LinePrefixQuoted("(define version")),
         (Haskell, ".cabal") | (Dart, _) => Some(VersionStrategy::LinePrefixUnquoted("version:")),
-        (Java, "pom.xml") => Some(VersionStrategy::XmlBetween("<version>", "</version>")),
+        (Java, "pom.xml") => Some(VersionStrategy::PomXmlVersion),
         (Java, "build.gradle") => Some(VersionStrategy::KeyValueQuoted("version", "=")),
         (Kotlin, "build.gradle.kts") => Some(VersionStrategy::KeyValueQuoted("version", "=")),
         (CSharp, _) | (FSharp, _) => Some(VersionStrategy::MSBuildVersion),
@@ -434,10 +445,188 @@ fn extract_first_quoted(s: &str) -> Option<SmolStr> {
     (!v.is_empty()).then(|| SmolStr::new(v))
 }
 
+fn parse_section_header(line: &str) -> Option<&str> {
+    let trimmed = line.trim_start();
+    if !trimmed.starts_with('[') {
+        return None;
+    }
+    let without_comment = trimmed.split('#').next()?.trim_end();
+    if let Some(inner) = without_comment
+        .strip_prefix("[[")
+        .and_then(|s| s.strip_suffix("]]"))
+    {
+        return Some(inner.trim());
+    }
+    without_comment
+        .strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))
+        .map(str::trim)
+}
+
+fn count_occurrences(haystack: &str, needle: &str) -> usize {
+    haystack.matches(needle).count()
+}
+
+fn extract_pom_version(content: &str) -> Option<SmolStr> {
+    let mut rest = content;
+    let mut depth: usize = 0;
+    let mut in_parent = false;
+    let mut parent_version: Option<SmolStr> = None;
+
+    while let Some(lt) = rest.find('<') {
+        rest = &rest[lt..];
+
+        if let Some(after_comment) = rest.strip_prefix("<!--") {
+            let end = after_comment.find("-->")?;
+            rest = &after_comment[end + 3..];
+            continue;
+        }
+        if rest.starts_with("<?") || rest.starts_with("<!") {
+            let gt = rest.find('>')?;
+            rest = &rest[gt + 1..];
+            continue;
+        }
+
+        let gt = rest.find('>')?;
+        let tag_body = rest[1..gt].trim();
+        rest = &rest[gt + 1..];
+
+        if let Some(closing) = tag_body.strip_prefix('/') {
+            let closing_name = closing.split_whitespace().next().unwrap_or("");
+            depth = depth.saturating_sub(1);
+            if depth == 1 && closing_name == "parent" {
+                in_parent = false;
+            }
+            continue;
+        }
+
+        if tag_body.ends_with('/') {
+            continue;
+        }
+
+        let tag_name = tag_body.split_whitespace().next().unwrap_or("");
+        if depth == 1 && tag_name == "version" {
+            let close_idx = rest.find("</version>")?;
+            let v = rest[..close_idx].trim();
+            rest = &rest[close_idx + "</version>".len()..];
+            if !v.is_empty() && !v.starts_with("${") {
+                return Some(SmolStr::new(v));
+            }
+            continue;
+        }
+
+        if depth == 1 && tag_name == "parent" {
+            in_parent = true;
+            depth += 1;
+            continue;
+        }
+
+        if depth == 2 && in_parent && tag_name == "version" {
+            let close_idx = rest.find("</version>")?;
+            let v = rest[..close_idx].trim();
+            rest = &rest[close_idx + "</version>".len()..];
+            if !v.is_empty() && !v.starts_with("${") && parent_version.is_none() {
+                parent_version = Some(SmolStr::new(v));
+            }
+            continue;
+        }
+
+        depth += 1;
+    }
+
+    parent_version
+}
+
 /// Apply `strategy` to the raw text of a manifest file and return the version string,
 /// or `None` if the pattern is not found or the matched value is empty.
 fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> {
     match strategy {
+        VersionStrategy::TomlSectionQuoted(sections, key) => {
+            let mut current_section = "";
+            let mut in_ml_single = false;
+            let mut in_ml_double = false;
+            let mut fallback: Option<(usize, SmolStr)> = None;
+
+            for line in content.lines() {
+                if in_ml_single {
+                    if count_occurrences(line, "'''") % 2 == 1 {
+                        in_ml_single = false;
+                    }
+                    continue;
+                }
+                if in_ml_double {
+                    if count_occurrences(line, "\"\"\"") % 2 == 1 {
+                        in_ml_double = false;
+                    }
+                    continue;
+                }
+
+                let trimmed = line.trim_start();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    continue;
+                }
+
+                if let Some(sec) = parse_section_header(trimmed) {
+                    current_section = sec;
+                    continue;
+                }
+
+                if let Some(prio) = sections.iter().position(|&s| s == current_section) {
+                    if let Some(rest) = trimmed.strip_prefix(key) {
+                        let rest = rest.trim_start();
+                        if let Some(rest) = rest.strip_prefix('=') {
+                            if let Some(v) = extract_first_quoted(rest.trim_start()) {
+                                if prio == 0 {
+                                    return Some(v);
+                                }
+                                if fallback.as_ref().is_none_or(|(best_p, _)| prio < *best_p) {
+                                    fallback = Some((prio, v));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if count_occurrences(line, "'''") % 2 == 1 {
+                    in_ml_single = true;
+                } else if count_occurrences(line, "\"\"\"") % 2 == 1 {
+                    in_ml_double = true;
+                }
+            }
+
+            fallback.map(|(_, v)| v)
+        }
+
+        VersionStrategy::IniSectionUnquoted(sections, key) => {
+            let mut current_section = "";
+            for line in content.lines() {
+                let trimmed = line.trim_start();
+                if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with(';') {
+                    continue;
+                }
+                if let Some(sec) = parse_section_header(trimmed) {
+                    current_section = sec;
+                    continue;
+                }
+                if sections.contains(&current_section) {
+                    if let Some(rest) = trimmed.strip_prefix(key) {
+                        let rest = rest.trim_start();
+                        if let Some(rest) = rest.strip_prefix('=') {
+                            let rest = rest.trim_start();
+                            let end = rest
+                                .find(|c: char| c.is_whitespace() || c == ')' || c == '#')
+                                .unwrap_or(rest.len());
+                            let v = &rest[..end];
+                            if !v.is_empty() {
+                                return Some(SmolStr::new(v));
+                            }
+                        }
+                    }
+                }
+            }
+            None
+        }
+
         VersionStrategy::KeyValueQuoted(key, sep) => {
             for line in content.lines() {
                 let line = line.trim_start();
@@ -446,26 +635,6 @@ fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> 
                     if let Some(rest) = rest.strip_prefix(sep) {
                         if let Some(v) = extract_first_quoted(rest.trim_start()) {
                             return Some(v);
-                        }
-                    }
-                }
-            }
-            None
-        }
-
-        VersionStrategy::KeyValueUnquoted(key, sep) => {
-            for line in content.lines() {
-                let line = line.trim_start();
-                if let Some(rest) = line.strip_prefix(key) {
-                    let rest = rest.trim_start();
-                    if let Some(rest) = rest.strip_prefix(sep) {
-                        let rest = rest.trim_start();
-                        let end = rest
-                            .find(|c: char| c.is_whitespace() || c == ')' || c == '#')
-                            .unwrap_or(rest.len());
-                        let v = &rest[..end];
-                        if !v.is_empty() {
-                            return Some(SmolStr::new(v));
                         }
                     }
                 }
@@ -505,13 +674,7 @@ fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> 
             None
         }
 
-        VersionStrategy::XmlBetween(open, close) => {
-            let start = content.find(open)? + open.len();
-            let rest = &content[start..];
-            let end = rest.find(close)?;
-            let v = rest[..end].trim();
-            (!v.is_empty()).then(|| SmolStr::new(v))
-        }
+        VersionStrategy::PomXmlVersion => extract_pom_version(content),
 
         VersionStrategy::CMakeVersion => {
             let project_idx = content
@@ -638,9 +801,15 @@ fn write_cached_version(lang: Language, version: &str) -> Option<()> {
     if let Ok(content) = std::fs::read_to_string(cache_path) {
         for line in content.lines() {
             let mut parts = line.splitn(3, ':');
-            if let Some(name) = parts.next() {
-                if name != key.as_str() {
-                    lines.push(line.to_string());
+            let (Some(name), Some(_ver), Some(ts_str)) = (parts.next(), parts.next(), parts.next())
+            else {
+                continue;
+            };
+            if name != key.as_str() {
+                if let Ok(ts) = ts_str.parse::<u64>() {
+                    if now >= ts && now - ts < CACHE_TTL_SECS {
+                        lines.push(line.to_string());
+                    }
                 }
             }
         }
@@ -774,7 +943,7 @@ async fn build_system_version_uncached(lang: Language) -> Option<SmolStr> {
 }
 
 pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
-    if !opts.nerd_font || !opts.manifest {
+    if !opts.manifest {
         return None;
     }
 
@@ -785,7 +954,12 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     // We will try each in sequence and return the first that yields a version.
     let mut manifests: SmallVec<[(std::path::PathBuf, Language, SmolStr); 4]> = SmallVec::new();
 
-    while let Some(entry) = entries.next_entry().await.ok()? {
+    loop {
+        let entry = match entries.next_entry().await {
+            Ok(Some(entry)) => entry,
+            Ok(None) => break,
+            Err(_) => continue,
+        };
         let file_name = entry.file_name();
         // Skip non-UTF-8 names (continue instead of aborting the whole scan).
         let Some(name) = file_name.to_str() else {
@@ -810,20 +984,20 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
                 manifests.push((entry.path(), lang.lang, SmolStr::new(key)));
             }
 
+            let label = opts.select_str(lang.name, lang.icon);
+
             match top_kind {
                 None => {
                     top_kind = Some(lang.kind);
-                    top_icons.push(lang.icon);
+                    top_icons.push(label);
                 }
                 Some(cur_top) if lang.kind > cur_top => {
                     top_kind = Some(lang.kind);
                     top_icons.clear();
-                    top_icons.push(lang.icon);
+                    top_icons.push(label);
                 }
-                Some(cur_top) if lang.kind == cur_top => {
-                    if !top_icons.contains(&lang.icon) {
-                        top_icons.push(lang.icon);
-                    }
+                Some(cur_top) if lang.kind == cur_top && !top_icons.contains(&label) => {
+                    top_icons.push(label);
                 }
                 _ => {}
             }
@@ -833,9 +1007,12 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     let top_kind = top_kind?;
     top_icons.sort_unstable();
 
-    // Concatenate deduplicated icons into a SmolStr.
+    // Concatenate deduplicated icons/names into a SmolStr.
     let mut builder = SmolStrBuilder::new();
-    for icon in &top_icons {
+    for (idx, icon) in top_icons.iter().enumerate() {
+        if idx > 0 && !opts.nerd_font {
+            builder.push('/');
+        }
         builder.push_str(icon);
     }
     let icons = builder.finish();
@@ -889,6 +1066,81 @@ mod tests {
         assert_eq!(
             extract_version(VersionStrategy::KeyValueQuoted("version", "="), content).as_deref(),
             Some("1.2.3")
+        );
+    }
+
+    #[test]
+    fn test_cargo_toml_ignores_dependency_tables_and_supports_workspace() {
+        let strat =
+            VersionStrategy::TomlSectionQuoted(&["package", "workspace.package"], "version");
+
+        let dep_first = r#"
+[dependencies.tokio]
+version = "1.54.0"
+
+[package]
+name = "demo"
+version = "0.4.2"
+"#;
+        assert_eq!(extract_version(strat, dep_first).as_deref(), Some("0.4.2"));
+
+        let inherited = r#"
+[workspace.package]
+version = "2.1.0"
+
+[package]
+name = "member"
+version.workspace = true
+
+[dependencies.serde]
+version = "1.0.0"
+"#;
+        assert_eq!(extract_version(strat, inherited).as_deref(), Some("2.1.0"));
+
+        let virtual_ws = r#"
+[workspace]
+members = ["a"]
+
+[workspace.dependencies.foo]
+version = "9.9.9"
+"#;
+        assert_eq!(extract_version(strat, virtual_ws), None);
+    }
+
+    #[test]
+    fn test_pom_xml_skips_parent_version_unless_inherited() {
+        let with_own = r#"
+<project>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.4</version>
+    </parent>
+    <artifactId>my-service</artifactId>
+    <version>0.8.1</version>
+    <dependencies>
+        <dependency><version>1.0.0</version></dependency>
+    </dependencies>
+</project>
+"#;
+        assert_eq!(
+            extract_version(VersionStrategy::PomXmlVersion, with_own).as_deref(),
+            Some("0.8.1")
+        );
+
+        let inherited_only = r#"
+<project>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-parent</artifactId>
+        <version>4.0.0</version>
+    </parent>
+    <artifactId>acme-child</artifactId>
+</project>
+"#;
+        assert_eq!(
+            extract_version(VersionStrategy::PomXmlVersion, inherited_only).as_deref(),
+            Some("4.0.0")
         );
     }
 }

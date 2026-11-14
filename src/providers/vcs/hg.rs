@@ -8,9 +8,9 @@ use std::str::FromStr;
 use tokio::fs;
 use tokio::io::AsyncReadExt;
 
-macro_rules! hg {
-    ( $( $x:expr ),* ) => {
-        CMD.exec("hg", [$( $x ),*])
+macro_rules! hg_in {
+    ( $path:expr, $( $x:expr ),* ) => {
+        CMD.exec_in(Some($path), "hg", [$( $x ),*])
     };
 }
 
@@ -42,15 +42,16 @@ impl VcsTrait for Hg {
         }
     }
 
-    async fn status(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
+    async fn status(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
         // TODO: although hg is quite slow, it is very difficult to implement `hg status` without resorting to the `hg` command...
-        hg!("status").await.map(|status| {
-            Chunk::info(merge_icons(
+        hg_in!(path, "status").await.and_then(|status| {
+            let icons = merge_icons(
                 status
                     .lines()
-                    .map(|line| line.parse::<StatusIcon<Hg>>().unwrap())
+                    .filter_map(|line| line.parse::<StatusIcon<Hg>>().ok())
                     .collect::<SmallVec<[_; 8]>>(),
-            ))
+            );
+            (!icons.is_empty()).then(|| Chunk::info(icons))
         })
     }
 

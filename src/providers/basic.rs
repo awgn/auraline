@@ -17,11 +17,7 @@ pub async fn hostname(opts: &Options) -> Option<Chunk<Adjoin<&'static str, Strin
 #[inline]
 pub async fn device_name(opts: &Options) -> Option<Chunk<String>> {
     opts.device_name
-        .then(|| {
-            whoami::devicename()
-                .ok()
-                .map(|d| Chunk::new("🖥", d))
-        })
+        .then(|| whoami::devicename().ok().map(|d| Chunk::new("🖥", d)))
         .flatten()
 }
 

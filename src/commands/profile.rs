@@ -1,7 +1,7 @@
 use crate::options::Options;
 use smol_str::SmolStr;
 
-const MINIMAL: Options = Options {
+pub const MINIMAL: Options = Options {
     profile: Some(SmolStr::new_static("minimal")),
     user: true,
     realname: false,
@@ -23,13 +23,15 @@ const MINIMAL: Options = Options {
     manifest: false,
     vcs: false,
     duration: false,
+    duration_ns: None,
+    exit_code: None,
+    shell: None,
     theme: None,
     timings: false,
     nerd_font: false,
-    exit_code: Some(0),
 };
 
-const LEAN: Options = Options {
+pub const LEAN: Options = Options {
     profile: Some(SmolStr::new_static("lean")),
     user: true,
     realname: false,
@@ -51,13 +53,15 @@ const LEAN: Options = Options {
     manifest: false,
     vcs: false,
     duration: true,
+    duration_ns: None,
+    exit_code: None,
+    shell: None,
     theme: None,
     timings: false,
     nerd_font: false,
-    exit_code: None,
 };
 
-const NERDY: Options = Options {
+pub const NERDY: Options = Options {
     profile: Some(SmolStr::new_static("nerdy")),
     user: true,
     realname: false,
@@ -79,10 +83,12 @@ const NERDY: Options = Options {
     manifest: true,
     vcs: true,
     duration: true,
+    duration_ns: None,
+    exit_code: None,
+    shell: None,
     theme: None,
     timings: false,
     nerd_font: true,
-    exit_code: None,
 };
 
 pub fn get_profile(name: &str) -> Option<Options> {
@@ -90,6 +96,6 @@ pub fn get_profile(name: &str) -> Option<Options> {
         "minimal" => Some(MINIMAL),
         "lean" => Some(LEAN),
         "nerdy" => Some(NERDY),
-        _ => Some(MINIMAL),
+        _ => None,
     }
 }

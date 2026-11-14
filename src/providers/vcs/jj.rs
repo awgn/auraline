@@ -6,79 +6,100 @@ use smol_str::{format_smolstr, SmolStr};
 use std::path::Path;
 use std::str::FromStr;
 
-macro_rules! jj {
-    ( $( $x:expr ),* ) => {
-        CMD.exec("jj", [$( $x ),*])
-    };
-}
+const JJ_SNAPSHOT_TEMPLATE: &str = r#"bookmarks.map(|b| b.name()).join(",") ++ "\t" ++ working_copies.join(" ") ++ "\t" ++ change_id.short(8) ++ "\t" ++ commit_id.short(8) ++ "\n" ++ diff.summary()"#;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Jj;
 
-fn parse_jj_branch(line: &str) -> Option<SmolStr> {
-    let branch = line.split_whitespace().rev().nth(1)?.trim();
-    let s = branch
-        .strip_suffix('*')
-        .or_else(|| branch.strip_suffix('?'))
-        .unwrap_or(branch);
-    (!s.is_empty()).then(|| SmolStr::new(s))
+struct JjHeader<'a> {
+    bookmarks: Option<&'a str>,
+    workspace: Option<&'a str>,
+    change_id: &'a str,
+    commit_id: &'a str,
+}
+
+fn parse_jj_header(line: &str) -> Option<JjHeader<'_>> {
+    let mut fields = line.split('\t');
+    let bookmarks_raw = fields.next()?.trim();
+    let wc_raw = fields.next()?.trim();
+    let change_id = fields.next()?.trim();
+    let commit_id = fields.next()?.trim();
+
+    if change_id.is_empty() || commit_id.is_empty() {
+        return None;
+    }
+
+    let bookmarks = (!bookmarks_raw.is_empty()).then_some(bookmarks_raw);
+    let workspace = wc_raw
+        .split_whitespace()
+        .next()
+        .map(|w| w.trim_end_matches('@'))
+        .filter(|w| !w.is_empty() && *w != "default");
+
+    Some(JjHeader {
+        bookmarks,
+        workspace,
+        change_id,
+        commit_id,
+    })
+}
+
+async fn query_jj(path: &Path) -> Option<SmolStr> {
+    CMD.exec_in(
+        Some(path),
+        "jj",
+        [
+            "log",
+            "--no-graph",
+            "--color",
+            "never",
+            "--no-pager",
+            "-r",
+            "@",
+            "-T",
+            JJ_SNAPSHOT_TEMPLATE,
+        ],
+    )
+    .await
 }
 
 impl VcsTrait for Jj {
-    async fn branch(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        jj!("log", "--limit", "1", "--color", "never", "--no-pager")
-            .await
-            .and_then(|status| {
-                let first_line = status.lines().next()?;
-                let s = parse_jj_branch(first_line)?;
-                Some(Chunk::new("jj ⎇", s))
-            })
+    async fn branch(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
+        let out = query_jj(path).await?;
+        let header = parse_jj_header(out.lines().next()?)?;
+        let bm = header.bookmarks?;
+        Some(Chunk::new("jj ⎇", SmolStr::new(bm)))
     }
 
-    async fn commit(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        let status = jj!("status", "--color", "never", "--no-pager").await?;
-        let working_copy = status
-            .lines()
-            .find(|l| l.starts_with("Working copy") && l.contains("(@)"))?;
-        let mut tokens = working_copy.split_whitespace();
-        let change_id = tokens.nth(4)?;
-        let commit_id = tokens.next()?;
+    async fn commit(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
+        let out = query_jj(path).await?;
+        let header = parse_jj_header(out.lines().next()?)?;
         Some(Chunk::new(
             "⭑",
-            format_smolstr!("{} {}", change_id, commit_id),
+            format_smolstr!("{} {}", header.change_id, header.commit_id),
         ))
     }
 
-    async fn status(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        jj!("status", "--color", "never", "--no-pager")
-            .await
-            .and_then(|status| {
-                let icons = merge_icons(
-                    status
-                        .lines()
-                        .filter(|l| l.as_bytes().get(1) == Some(&b' '))
-                        .filter_map(|line| line.parse::<StatusIcon<Jj>>().ok())
-                        .collect::<SmallVec<[_; 8]>>(),
-                );
-                if icons.is_empty() {
-                    return None;
-                }
-                Some(Chunk::info(icons))
-            })
+    async fn status(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
+        let out = query_jj(path).await?;
+        let icons = merge_icons(
+            out.lines()
+                .skip(1)
+                .filter(|l| l.as_bytes().get(1) == Some(&b' '))
+                .filter_map(|line| line.parse::<StatusIcon<Jj>>().ok())
+                .collect::<SmallVec<[_; 8]>>(),
+        );
+        if icons.is_empty() {
+            None
+        } else {
+            Some(Chunk::info(icons))
+        }
     }
 
-    async fn worktree(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        jj!("log", "--limit", "1", "--color", "never", "--no-pager")
-            .await
-            .and_then(|status| {
-                let mut tokens = status.lines().next()?.split_whitespace();
-
-                if tokens.clone().count() == 8 {
-                    tokens.nth(5).map(|t| Chunk::new("¶", SmolStr::new(t)))
-                } else {
-                    None
-                }
-            })
+    async fn worktree(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
+        let out = query_jj(path).await?;
+        let header = parse_jj_header(out.lines().next()?)?;
+        header.workspace.map(|ws| Chunk::new("¶", SmolStr::new(ws)))
     }
 
     async fn stash(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
@@ -107,27 +128,22 @@ impl FromStr for StatusIcon<Jj> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_jj_branch;
+    use super::parse_jj_header;
 
     #[test]
-    fn test_parse_jj_branch_safe() {
-        assert_eq!(
-            parse_jj_branch("@  qpvuntsm user@example.com 2026-10-18 07:00:00 main* 12345678")
-                .as_deref(),
-            Some("main")
-        );
-        assert_eq!(
-            parse_jj_branch("@  qpvuntsm user@example.com 2026-10-18 07:00:00 main 12345678")
-                .as_deref(),
-            Some("main")
-        );
-        // Multi-byte UTF-8 character at the end must not panic
-        assert_eq!(
-            parse_jj_branch("@  qpvuntsm user@example.com 2026-10-18 07:00:00 🚀 12345678")
-                .as_deref(),
-            Some("🚀")
-        );
-        // Single character token must not return empty string
-        assert_eq!(parse_jj_branch("@ * 12345678"), None);
+    fn test_parse_jj_header_structured() {
+        let h = parse_jj_header("main\t\tqpvuntsm\t12345678").unwrap();
+        assert_eq!(h.bookmarks, Some("main"));
+        assert_eq!(h.workspace, None);
+        assert_eq!(h.change_id, "qpvuntsm");
+        assert_eq!(h.commit_id, "12345678");
+
+        let h_ws = parse_jj_header("🚀,feat\tsecondary@\tqpvuntsm\t12345678").unwrap();
+        assert_eq!(h_ws.bookmarks, Some("🚀,feat"));
+        assert_eq!(h_ws.workspace, Some("secondary"));
+
+        let h_default_ws = parse_jj_header("\tdefault@\tqpvuntsm\t12345678").unwrap();
+        assert_eq!(h_default_ws.bookmarks, None);
+        assert_eq!(h_default_ws.workspace, None);
     }
 }

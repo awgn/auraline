@@ -11,10 +11,13 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     let ifaddrs = if_addrs::get_if_addrs().ok()?;
     let uniq: BTreeSet<SmolStr> = ifaddrs
         .iter()
-        .filter_map(|ni| {
-            matches!(ni.oper_status, if_addrs::IfOperStatus::Up).then_some(ni.name.to_smolstr())
-        })
-        .collect::<BTreeSet<_>>();
+        .filter(|ni| !ni.is_loopback() && matches!(ni.oper_status, if_addrs::IfOperStatus::Up))
+        .map(|ni| ni.name.to_smolstr())
+        .collect();
+
+    if uniq.is_empty() {
+        return None;
+    }
 
     let mut builder = SmolStrBuilder::new();
     let mut first = true;
@@ -26,5 +29,5 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
         first = false;
     }
 
-    Some(Chunk::new("󰛳", builder.finish()))
+    Some(Chunk::new(opts.select_str("☍", "󰛳"), builder.finish()))
 }

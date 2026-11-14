@@ -21,7 +21,8 @@ pub async fn show(opts: &Options) -> Option<Chunk<Unit>> {
         return None;
     }
 
-    let has_sudo = is_root() || CMD.exec("sudo", ["-n", "-v"]).await.is_some();
+    // `sudo -Nnv` checks cached credentials without updating/extending timestamp_timeout.
+    let has_sudo = is_root() || CMD.exec("sudo", ["-N", "-n", "-v"]).await.is_some();
 
-    has_sudo.then(|| Chunk::icon("󰌋"))
+    has_sudo.then(|| Chunk::icon(opts.select_str("⚡", "󰌋")))
 }

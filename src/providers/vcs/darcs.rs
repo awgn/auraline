@@ -11,9 +11,9 @@ use std::{path::Path, str::FromStr};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Darcs;
 
-macro_rules! darcs {
-    ( $( $x:expr ),* ) => {
-        CMD.exec("darcs", [$( $x ),*])
+macro_rules! darcs_in {
+    ( $path:expr, $( $x:expr ),* ) => {
+        CMD.exec_in(Some($path), "darcs", [$( $x ),*])
     };
 }
 
@@ -22,8 +22,8 @@ impl VcsTrait for Darcs {
         None
     }
 
-    async fn commit(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        darcs!("log", "--last", "1", "--summary")
+    async fn commit(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
+        darcs_in!(path, "log", "--last", "1", "--summary")
             .await?
             .lines()
             .next()?
@@ -32,16 +32,17 @@ impl VcsTrait for Darcs {
             .map(|s| Chunk::new("⭑", s.trim().to_smolstr()))
     }
 
-    async fn status(&self, _opts: &Options, _path: &Path) -> Option<Chunk<SmolStr>> {
-        darcs!("whatsnew", "-s")
+    async fn status(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
+        darcs_in!(path, "whatsnew", "-s")
             .await
             .filter(|s| !s.is_empty())
-            .map(|s| {
-                Chunk::info(merge_icons(
+            .and_then(|s| {
+                let icons = merge_icons(
                     s.lines()
-                        .map(|l| l.parse::<StatusIcon<Darcs>>().unwrap())
+                        .filter_map(|l| l.parse::<StatusIcon<Darcs>>().ok())
                         .collect::<SmallVec<[_; 8]>>(),
-                ))
+                );
+                (!icons.is_empty()).then(|| Chunk::info(icons))
             })
     }
 

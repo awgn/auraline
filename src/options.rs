@@ -1,6 +1,14 @@
-use clap::{ArgAction, Args, Parser, Subcommand};
+use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use frunk::Semigroup;
 use smol_str::SmolStr;
+
+#[derive(ValueEnum, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum ShellMode {
+    #[default]
+    None,
+    Bash,
+    Zsh,
+}
 
 #[derive(Parser, Debug, Default)]
 #[command(author, version, about, long_about = None, disable_help_flag = true, disable_help_subcommand = true)]
@@ -29,7 +37,7 @@ pub struct InitOptions {
     pub shell: SmolStr,
 }
 
-#[derive(Args, Debug, Default)]
+#[derive(Args, Debug, Default, Clone)]
 pub struct Options {
     #[clap(short('u'), long, help = "Basic user info")]
     pub user: bool,
@@ -95,8 +103,22 @@ pub struct Options {
     #[clap(short('e'), long, help = "Show the duration of the last command")]
     pub duration: bool,
 
+    #[clap(
+        long,
+        hide = true,
+        help = "Duration of the last command in nanoseconds (passed by shell hook)"
+    )]
+    pub duration_ns: Option<u64>,
+
     #[clap(long, help = "Specify the exit-code of the last command to show")]
     pub exit_code: Option<u8>,
+
+    #[clap(
+        long,
+        value_enum,
+        help = "Wrap non-printing ANSI sequences for shell prompt"
+    )]
+    pub shell: Option<ShellMode>,
 
     #[clap(long, help = "Enable timings mode (dev)")]
     pub timings: bool,
@@ -118,6 +140,37 @@ impl Options {
         } else {
             normal
         }
+    }
+
+    pub fn shell_mode(&self) -> ShellMode {
+        if self.timings {
+            ShellMode::None
+        } else {
+            self.shell.unwrap_or(ShellMode::None)
+        }
+    }
+
+    pub fn has_explicit_provider(&self) -> bool {
+        self.user
+            || self.realname
+            || self.hostname
+            || self.device_name
+            || self.distro
+            || self.pwd
+            || self.full_pwd
+            || self.vcs
+            || self.ssh
+            || self.sudo
+            || self.os
+            || self.virt
+            || self.netif
+            || self.netns
+            || self.memory
+            || self.disk
+            || self.load
+            || self.huge_pages
+            || self.manifest
+            || self.duration
     }
 }
 
@@ -144,7 +197,9 @@ impl Semigroup for Options {
             huge_pages: self.huge_pages || other.huge_pages,
             manifest: self.manifest || other.manifest,
             duration: self.duration || other.duration,
+            duration_ns: self.duration_ns.or(other.duration_ns),
             exit_code: self.exit_code.or(other.exit_code),
+            shell: self.shell.or(other.shell),
             timings: self.timings || other.timings,
             theme: self.theme.clone().or(other.theme.clone()),
             nerd_font: self.nerd_font || other.nerd_font,

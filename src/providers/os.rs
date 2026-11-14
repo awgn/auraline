@@ -84,7 +84,7 @@ static OS_MAP: phf::Map<&'static str, OsInfo> = phf_map! {
     "zorin" => OsInfo { icon: "", color: "#14A1E8", cterm_color: "39", name: "Zorin" },
 };
 
-fn parse_os_release_icon(os_release: &str) -> Option<&'static str> {
+fn parse_os_release_info(os_release: &str) -> Option<&'static OsInfo> {
     let mut id = None;
     let mut id_like = None;
 
@@ -102,44 +102,44 @@ fn parse_os_release_icon(os_release: &str) -> Option<&'static str> {
 
     if let Some(id) = id {
         if let Some(info) = OS_MAP.get(id) {
-            return Some(info.icon);
+            return Some(info);
         }
     }
 
     if let Some(id_like) = id_like {
         for candidate in id_like.split_whitespace() {
             if let Some(info) = OS_MAP.get(candidate) {
-                return Some(info.icon);
+                return Some(info);
             }
         }
     }
 
-    OS_MAP.get("linux").map(|info| info.icon)
+    OS_MAP.get("linux")
 }
 
 // see few examples @ https://gist.github.com/natefoo/814c5bf936922dad97ff
-pub async fn lsb_icon() -> Option<Chunk<Unit>> {
+pub async fn lsb_info() -> Option<&'static OsInfo> {
     let os_release = std::fs::read_to_string("/etc/os-release")
         .or_else(|_| std::fs::read_to_string("/usr/lib/os-release"))
         .ok()?;
-    parse_os_release_icon(&os_release).map(Chunk::icon)
+    parse_os_release_info(&os_release)
 }
 
 pub async fn show(opts: &Options) -> Option<Chunk<Unit>> {
-    if !opts.nerd_font || !opts.os {
+    if !opts.os {
         return None;
     }
 
-    match std::env::consts::OS {
-        "linux" => lsb_icon().await,
-        "windows" => OS_MAP.get("windows").map(|info| Chunk::icon(info.icon)),
-        "macos" => OS_MAP.get("apple").map(|info| Chunk::icon(info.icon)),
-        "ios" => OS_MAP.get("apple").map(|info| Chunk::icon(info.icon)),
-        "openbsd" => OS_MAP.get("openbsd").map(|info| Chunk::icon(info.icon)),
-        "freebsd" => OS_MAP.get("freebsd").map(|info| Chunk::icon(info.icon)),
-        "netbsd" => OS_MAP.get("netbsd").map(|info| Chunk::icon(info.icon)),
-        "apple" => OS_MAP.get("apple").map(|info| Chunk::icon(info.icon)),
-        "illumos" => OS_MAP.get("illumos").map(|info| Chunk::icon(info.icon)),
+    let info = match std::env::consts::OS {
+        "linux" => lsb_info().await,
+        "windows" => OS_MAP.get("windows"),
+        "macos" | "ios" | "apple" => OS_MAP.get("apple"),
+        "openbsd" => OS_MAP.get("openbsd"),
+        "freebsd" => OS_MAP.get("freebsd"),
+        "netbsd" => OS_MAP.get("netbsd"),
+        "illumos" => OS_MAP.get("illumos"),
         _ => None,
-    }
+    }?;
+
+    Some(Chunk::icon(opts.select_str(info.name, info.icon)))
 }
