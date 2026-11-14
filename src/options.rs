@@ -106,6 +106,13 @@ pub struct Options {
     #[clap(short('l'), long, help = "Show system load average info")]
     pub load: bool,
 
+    #[clap(
+        short('P'),
+        long,
+        help = "Show Linux PSI contention alerts (CPU, memory, I/O)"
+    )]
+    pub psi: bool,
+
     #[clap(short('H'), long, help = "Show HugePages info")]
     pub huge_pages: bool,
 
@@ -198,6 +205,7 @@ impl Options {
             || self.memory
             || self.disk
             || self.load
+            || self.psi
             || self.huge_pages
             || self.manifest
             || self.jobs
@@ -229,6 +237,7 @@ impl Semigroup for Options {
             memory: self.memory || other.memory,
             disk: self.disk || other.disk,
             load: self.load || other.load,
+            psi: self.psi || other.psi,
             huge_pages: self.huge_pages || other.huge_pages,
             manifest: self.manifest || other.manifest,
             jobs: self.jobs || other.jobs,

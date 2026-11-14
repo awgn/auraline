@@ -2,7 +2,6 @@ use frunk::{hlist, HCons, HNil};
 use owo_colors::Style;
 use std::env;
 use std::fmt::{Display, Write as _};
-use std::future::Future;
 use std::io::Write as _;
 use std::time::Duration;
 
@@ -21,6 +20,7 @@ use crate::providers::netif::show as netif_show;
 use crate::providers::netns::show as net_namespace;
 use crate::providers::nix::show as nix_show;
 use crate::providers::os::show as os_show;
+use crate::providers::psi::show as psi_show;
 use crate::providers::shlvl::show as shlvl_show;
 use crate::providers::ssh::show as ssh_show;
 use crate::providers::sudo::show as sudo_show;
@@ -68,6 +68,15 @@ macro_rules! item_vcs {
     }};
 }
 
+macro_rules! run_items {
+    ($($name:ident : $fut:expr),+ $(,)?) => {
+        async {
+            let ($($name,)+) = tokio::join!($($fut),+);
+            hlist![$($name),+]
+        }
+    };
+}
+
 pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
     let start = opts.timings.then(std::time::Instant::now);
 
@@ -77,29 +86,30 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
         Style::default(),
     );
 
-    let pre_vcs = hlist![
-        item![opts.sudo, sudo_show, &opts, (bold.yellow(), bold)],
-        item![opts.user, user, &opts, (color, bold)],
-        item![opts.realname, realname, &opts, (color, bold)],
-        item![opts.hostname, hostname, &opts, (color, bold.dimmed())],
-        item![opts.device_name, device_name, &opts, (color, bold.dimmed())],
-        item![opts.distro, distro, &opts, (color, bold.dimmed())],
-        item![opts.pwd, pwd, &opts, (color, bold)],
-        item![opts.full_pwd, full_pwd, &opts, (color, bold)],
-        item![opts.shlvl, shlvl_show, &opts, (color, color.bold())],
-        item![opts.os, os_show, &opts, (color, bold)],
-        item![opts.virt, virt_show, &opts, (bold, bold)],
-        item![opts.memory, memory_show, &opts, (bold, bold)],
-        item![opts.disk, disk_show, &opts, (bold, bold)],
-        item![opts.huge_pages, huge_pages_show, &opts, (bold, bold)],
-        item![opts.load, load_show, &opts, (bold, bold)],
-        item![opts.ssh, ssh_show, &opts, (bold, def)],
-        item![opts.netif, netif_show, &opts, (bold.dimmed(), def.dimmed())],
-        item![opts.netns, net_namespace, &opts, (bold, bold)],
-        item![opts.k8s, k8s_show, &opts, (color, color.dimmed())],
-        item![opts.nix, nix_show, &opts, (color, color.dimmed())],
-        item![opts.venv, venv_show, &opts, (color, color.dimmed())],
-        item![opts.manifest, manifest_show, &opts, (color, color.dimmed())],
+    let pre_vcs = run_items![
+        sudo: item![opts.sudo, sudo_show, &opts, (bold.yellow(), bold)],
+        user: item![opts.user, user, &opts, (color, bold)],
+        realname: item![opts.realname, realname, &opts, (color, bold)],
+        hostname: item![opts.hostname, hostname, &opts, (color, bold.dimmed())],
+        device_name: item![opts.device_name, device_name, &opts, (color, bold.dimmed())],
+        distro: item![opts.distro, distro, &opts, (color, bold.dimmed())],
+        pwd: item![opts.pwd, pwd, &opts, (color, bold)],
+        full_pwd: item![opts.full_pwd, full_pwd, &opts, (color, bold)],
+        shlvl: item![opts.shlvl, shlvl_show, &opts, (color, color.bold())],
+        os: item![opts.os, os_show, &opts, (color, bold)],
+        virt: item![opts.virt, virt_show, &opts, (bold, bold)],
+        memory: item![opts.memory, memory_show, &opts, (bold, bold)],
+        disk: item![opts.disk, disk_show, &opts, (bold, bold)],
+        huge_pages: item![opts.huge_pages, huge_pages_show, &opts, (bold, bold)],
+        load: item![opts.load, load_show, &opts, (bold, bold)],
+        psi: item![opts.psi, psi_show, &opts, (bold.yellow(), bold)],
+        ssh: item![opts.ssh, ssh_show, &opts, (bold, def)],
+        netif: item![opts.netif, netif_show, &opts, (bold.dimmed(), def.dimmed())],
+        netns: item![opts.netns, net_namespace, &opts, (bold, bold)],
+        k8s: item![opts.k8s, k8s_show, &opts, (color, color.dimmed())],
+        nix: item![opts.nix, nix_show, &opts, (color, color.dimmed())],
+        venv: item![opts.venv, venv_show, &opts, (color, color.dimmed())],
+        manifest: item![opts.manifest, manifest_show, &opts, (color, color.dimmed())],
     ];
 
     let vcs_fut = async {
@@ -111,37 +121,37 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
             None
         };
         let vcs_ref = vcs.as_ref();
-        let vcs_tasks = hlist![
-            item_vcs![
+        run_items![
+            branch: item_vcs![
                 vcs_ref,
                 <Vcs as VcsTrait>::branch,
                 &opts,
                 (bold, color.bold())
             ],
-            item_vcs![
+            action: item_vcs![
                 vcs_ref,
                 <Vcs as VcsTrait>::action,
                 &opts,
                 (bold, color.italic())
             ],
-            item_vcs![vcs_ref, <Vcs as VcsTrait>::status, &opts, (bold, color)],
-            item_vcs![vcs_ref, <Vcs as VcsTrait>::stash, &opts, (bold, def)],
-            item_vcs![
+            status: item_vcs![vcs_ref, <Vcs as VcsTrait>::status, &opts, (bold, color)],
+            stash: item_vcs![vcs_ref, <Vcs as VcsTrait>::stash, &opts, (bold, def)],
+            worktree: item_vcs![
                 vcs_ref,
                 <Vcs as VcsTrait>::worktree,
                 &opts,
                 (bold, bold.dimmed())
             ],
-            item_vcs![vcs_ref, <Vcs as VcsTrait>::commit, &opts, (bold, bold)],
-            item_vcs![vcs_ref, <Vcs as VcsTrait>::divergence, &opts, (bold, def)],
-        ];
-        vcs_tasks.hjoin().await
+            commit: item_vcs![vcs_ref, <Vcs as VcsTrait>::commit, &opts, (bold, bold)],
+            divergence: item_vcs![vcs_ref, <Vcs as VcsTrait>::divergence, &opts, (bold, def)],
+        ]
+        .await
     };
 
-    let post_vcs = hlist![
-        item![opts.jobs, jobs_show, &opts, (color, color.bold())],
-        item![opts.duration, duration_show, &opts, (def, def.dimmed())],
-        item![
+    let post_vcs = run_items![
+        jobs: item![opts.jobs, jobs_show, &opts, (color, color.bold())],
+        duration: item![opts.duration, duration_show, &opts, (def, def.dimmed())],
+        exit_code: item![
             opts.exit_code.is_some(),
             exit_code_show,
             &opts,
@@ -151,7 +161,7 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
 
     // Poll all enabled providers concurrently on the single-threaded runtime,
     // without spawning heap tasks or cloning Arc/PathBuf.
-    let (pre, vcs_res, post) = tokio::join!(pre_vcs.hjoin(), vcs_fut, post_vcs.hjoin());
+    let (pre, vcs_res, post) = tokio::join!(pre_vcs, vcs_fut, post_vcs);
 
     if let Some(start) = start {
         pre.print_timings();
@@ -169,32 +179,6 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-trait HListJoin {
-    type Output;
-    async fn hjoin(self) -> Self::Output;
-}
-
-impl HListJoin for HNil {
-    type Output = HNil;
-    #[inline]
-    async fn hjoin(self) -> Self::Output {
-        HNil
-    }
-}
-
-impl<H, T> HListJoin for HCons<H, T>
-where
-    H: Future,
-    T: HListJoin,
-{
-    type Output = HCons<H::Output, T::Output>;
-    #[inline]
-    async fn hjoin(self) -> Self::Output {
-        let (head, tail) = tokio::join!(self.head, self.tail.hjoin());
-        HCons { head, tail }
-    }
 }
 
 trait HListRender {
