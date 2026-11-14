@@ -69,6 +69,7 @@ Options:
   -k, --disk                   Show disk usage info
   -l, --load                   Show system load average info
   -P, --psi                    Show Linux PSI contention alerts (CPU, memory, I/O)
+  -g, --cpu-gov                Show Linux CPU scaling governor
   -H, --huge-pages             Show HugePages info
   -M, --manifest               Show development package info in the current directory
   -j, --jobs                   Show background / suspended shell jobs
@@ -174,6 +175,7 @@ Automatically walks parent directories to detect the active repository (prioriti
 - **HugePages** (`-H`, `--huge-pages`): Linux HugePages allocation by page size, with per-NUMA-node subscript breakdown on multi-socket systems (e.g. `₀8x2MB,₁8x2MB`)
 - **Load Average** (`-l`, `--load`): 1-minute system load average (`λ1.45`)
 - **PSI Pressure** (`-P`, `--psi`): Linux Pressure Stall Information (`/proc/pressure/{cpu,memory,io}`) contention alerts when `some avg10 >= 5%` (`⚠ io:18%` or `󰀦 io:18%` with `--nerd-font`)
+- **CPU Governor** (`-g`, `--cpu-gov`): Active Linux `cpufreq` scaling governor (`⚙ performance` or `󰓅 performance` with `--nerd-font`)
 - **SSH** (`-s`, `--ssh`): Active SSH session indicator with target server IP and port
 - **Network Interfaces** (`-n`, `--netif`): Active network interfaces with assigned addresses
 - **Network Namespace** (`-N`, `--netns`): Current Linux network namespace (`ip netns`)

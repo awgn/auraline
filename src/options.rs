@@ -113,6 +113,9 @@ pub struct Options {
     )]
     pub psi: bool,
 
+    #[clap(short('g'), long, help = "Show Linux CPU scaling governor")]
+    pub cpu_gov: bool,
+
     #[clap(short('H'), long, help = "Show HugePages info")]
     pub huge_pages: bool,
 
@@ -206,6 +209,7 @@ impl Options {
             || self.disk
             || self.load
             || self.psi
+            || self.cpu_gov
             || self.huge_pages
             || self.manifest
             || self.jobs
@@ -238,6 +242,7 @@ impl Semigroup for Options {
             disk: self.disk || other.disk,
             load: self.load || other.load,
             psi: self.psi || other.psi,
+            cpu_gov: self.cpu_gov || other.cpu_gov,
             huge_pages: self.huge_pages || other.huge_pages,
             manifest: self.manifest || other.manifest,
             jobs: self.jobs || other.jobs,
