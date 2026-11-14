@@ -60,6 +60,9 @@ pub struct Options {
     #[clap(short('W'), long, help = "Current working directory (full path)")]
     pub full_pwd: bool,
 
+    #[clap(short('L'), long, help = "Show nested subshell depth")]
+    pub shlvl: bool,
+
     #[clap(short('v'), long, help = "Show VCS info (git, hg, jj, etc.)")]
     pub vcs: bool,
 
@@ -181,6 +184,7 @@ impl Options {
             || self.distro
             || self.pwd
             || self.full_pwd
+            || self.shlvl
             || self.vcs
             || self.ssh
             || self.sudo
@@ -211,6 +215,7 @@ impl Semigroup for Options {
             distro: self.distro || other.distro,
             pwd: self.pwd || other.pwd,
             full_pwd: self.full_pwd || other.full_pwd,
+            shlvl: self.shlvl || other.shlvl,
             vcs: self.vcs || other.vcs,
             ssh: self.ssh || other.ssh,
             sudo: self.sudo || other.sudo,

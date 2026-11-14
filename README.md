@@ -54,6 +54,7 @@ Options:
   -D, --distro                 Basic distro info
   -w, --pwd                    Current working directory
   -W, --full-pwd               Current working directory (full path)
+  -L, --shlvl                  Show nested subshell depth
   -v, --vcs                    Show VCS info (git, hg, jj, etc.)
   -s, --ssh                    Show SSH info
   -S, --sudo                   Show cached sudo credentials status
@@ -111,8 +112,8 @@ Profiles
 | Profile   | Enabled Providers | Nerd Fonts |
 |-----------|-------------------|------------|
 | `minimal` | `user`, `hostname`, `pwd` *(default)* | No |
-| `lean`    | `user`, `hostname`, `pwd`, `memory`, `disk`, `load`, `ssh`, `sudo`, `netif`, `jobs`, `duration`, `exit_code` | No |
-| `nerdy`   | `user`, `hostname`, `pwd`, `os`, `virt`, `memory`, `disk`, `huge_pages`, `load`, `ssh`, `sudo`, `netif`, `netns`, `nix`, `venv`, `manifest`, `vcs`, `jobs`, `duration`, `exit_code` | Yes |
+| `lean`    | `user`, `hostname`, `pwd`, `shlvl`, `memory`, `disk`, `load`, `ssh`, `sudo`, `netif`, `jobs`, `duration`, `exit_code` | No |
+| `nerdy`   | `user`, `hostname`, `pwd`, `shlvl`, `os`, `virt`, `memory`, `disk`, `huge_pages`, `load`, `ssh`, `sudo`, `netif`, `netns`, `nix`, `venv`, `manifest`, `vcs`, `jobs`, `duration`, `exit_code` | Yes |
 
 Theme Colors
 ------------
@@ -150,6 +151,7 @@ All enabled providers execute concurrently on a Tokio runtime; non-VCS providers
 - **Distro** (`-D`, `--distro`): OS / Linux distribution name
 - **PWD** (`-w`, `--pwd`): Current working directory (with `~` home shortening)
 - **Full PWD** (`-W`, `--full-pwd`): Current working directory (full path)
+- **Subshell Depth** (`-L`, `--shlvl`): Nested subshell depth from `$SHLVL`, automatically compensating for `tmux`, `zellij`, and `screen` (`↳²` or `󰆍²` with `--nerd-font`)
 
 ### Version Control Systems (`-v`, `--vcs`)
 Automatically walks parent directories to detect the active repository (prioritizing colocated Jujutsu `.jj` repositories over `.git`):

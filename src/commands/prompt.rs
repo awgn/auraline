@@ -21,6 +21,7 @@ use crate::providers::netif::show as netif_show;
 use crate::providers::netns::show as net_namespace;
 use crate::providers::nix::show as nix_show;
 use crate::providers::os::show as os_show;
+use crate::providers::shlvl::show as shlvl_show;
 use crate::providers::ssh::show as ssh_show;
 use crate::providers::sudo::show as sudo_show;
 use crate::providers::vcs::{infer_vcs, Vcs, VcsTrait};
@@ -85,6 +86,7 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
         item![opts.distro, distro, &opts, (color, bold.dimmed())],
         item![opts.pwd, pwd, &opts, (color, bold)],
         item![opts.full_pwd, full_pwd, &opts, (color, bold)],
+        item![opts.shlvl, shlvl_show, &opts, (color, color.bold())],
         item![opts.os, os_show, &opts, (color, bold)],
         item![opts.virt, virt_show, &opts, (bold, bold)],
         item![opts.memory, memory_show, &opts, (bold, bold)],

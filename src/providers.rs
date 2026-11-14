@@ -12,6 +12,7 @@ pub mod netif;
 pub mod netns;
 pub mod nix;
 pub mod os;
+pub mod shlvl;
 pub mod ssh;
 pub mod sudo;
 pub mod vcs;
