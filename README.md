@@ -70,6 +70,7 @@ Options:
   -l, --load                   Show system load average info
   -P, --psi                    Show Linux PSI contention alerts (CPU, memory, I/O)
   -g, --cpu-gov                Show Linux CPU scaling governor
+  -b, --battery                Show battery level and charging status
   -H, --huge-pages             Show HugePages info
   -M, --manifest               Show development package info in the current directory
   -j, --jobs                   Show background / suspended shell jobs
@@ -176,6 +177,7 @@ Automatically walks parent directories to detect the active repository (prioriti
 - **Load Average** (`-l`, `--load`): 1-minute system load average (`λ1.45`)
 - **PSI Pressure** (`-P`, `--psi`): Linux Pressure Stall Information (`/proc/pressure/{cpu,memory,io}`) contention alerts when `some avg10 >= 5%` (`⚠ io:18%` or `󰀦 io:18%` with `--nerd-font`)
 - **CPU Governor** (`-g`, `--cpu-gov`): Active Linux `cpufreq` scaling governor (`⚙ performance` or `󰓅 performance` with `--nerd-font`)
+- **Battery** (`-b`, `--battery`): Laptop battery capacity and charging state via `/sys/class/power_supply/` on Linux and cached `pmset -g batt` on macOS (`⚡ 82%` / `▮ 75%`, or `󰂄 82%` / `󰁹 85%` with `--nerd-font`)
 - **SSH** (`-s`, `--ssh`): Active SSH session indicator with target server IP and port
 - **Network Interfaces** (`-n`, `--netif`): Active network interfaces with assigned addresses
 - **Network Namespace** (`-N`, `--netns`): Current Linux network namespace (`ip netns`)

@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use crate::chunk::Chunk;
 use crate::providers::basic::{device_name, distro, full_pwd, hostname, pwd, realname, user};
+use crate::providers::battery::show as battery_show;
 use crate::providers::cpu_gov::show as cpu_gov_show;
 use crate::providers::disk::show as disk_show;
 use crate::providers::duration::show as duration_show;
@@ -105,6 +106,7 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
         load: item![opts.load, load_show, &opts, (bold, bold)],
         psi: item![opts.psi, psi_show, &opts, (bold.yellow(), bold)],
         cpu_gov: item![opts.cpu_gov, cpu_gov_show, &opts, (bold, bold.dimmed())],
+        battery: item![opts.battery, battery_show, &opts, (bold, bold)],
         ssh: item![opts.ssh, ssh_show, &opts, (bold, def)],
         netif: item![opts.netif, netif_show, &opts, (bold.dimmed(), def.dimmed())],
         netns: item![opts.netns, net_namespace, &opts, (bold, bold)],

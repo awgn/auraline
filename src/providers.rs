@@ -1,4 +1,5 @@
 pub mod basic;
+pub mod battery;
 pub mod cpu_gov;
 pub mod disk;
 pub mod duration;

@@ -116,6 +116,9 @@ pub struct Options {
     #[clap(short('g'), long, help = "Show Linux CPU scaling governor")]
     pub cpu_gov: bool,
 
+    #[clap(short('b'), long, help = "Show battery level and charging status")]
+    pub battery: bool,
+
     #[clap(short('H'), long, help = "Show HugePages info")]
     pub huge_pages: bool,
 
@@ -210,6 +213,7 @@ impl Options {
             || self.load
             || self.psi
             || self.cpu_gov
+            || self.battery
             || self.huge_pages
             || self.manifest
             || self.jobs
@@ -243,6 +247,7 @@ impl Semigroup for Options {
             load: self.load || other.load,
             psi: self.psi || other.psi,
             cpu_gov: self.cpu_gov || other.cpu_gov,
+            battery: self.battery || other.battery,
             huge_pages: self.huge_pages || other.huge_pages,
             manifest: self.manifest || other.manifest,
             jobs: self.jobs || other.jobs,
