@@ -12,6 +12,7 @@ use crate::providers::disk::show as disk_show;
 use crate::providers::duration::show as duration_show;
 use crate::providers::exit_code::show as exit_code_show;
 use crate::providers::huge_pages::show as huge_pages_show;
+use crate::providers::k8s::show as k8s_show;
 use crate::providers::load::show as load_show;
 use crate::providers::manifest::show as manifest_show;
 use crate::providers::memory::show as memory_show;
@@ -90,6 +91,7 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
         item![opts.ssh, ssh_show, &opts, (bold, def)],
         item![opts.netif, netif_show, &opts, (bold.dimmed(), def.dimmed())],
         item![opts.netns, net_namespace, &opts, (bold, bold)],
+        item![opts.k8s, k8s_show, &opts, (color, color.dimmed())],
         item![opts.manifest, manifest_show, &opts, (color, color.dimmed())],
     ];
 

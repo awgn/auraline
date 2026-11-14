@@ -81,6 +81,9 @@ pub struct Options {
     #[clap(short('N'), long, help = "Show network namespace info")]
     pub netns: bool,
 
+    #[clap(short('K'), long, help = "Show Kubernetes context and namespace")]
+    pub k8s: bool,
+
     #[clap(short('m'), long, help = "Show memory usage info")]
     pub memory: bool,
 
@@ -165,6 +168,7 @@ impl Options {
             || self.virt
             || self.netif
             || self.netns
+            || self.k8s
             || self.memory
             || self.disk
             || self.load
@@ -191,6 +195,7 @@ impl Semigroup for Options {
             virt: self.virt || other.virt,
             netif: self.netif || other.netif,
             netns: self.netns || other.netns,
+            k8s: self.k8s || other.k8s,
             memory: self.memory || other.memory,
             disk: self.disk || other.disk,
             load: self.load || other.load,

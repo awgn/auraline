@@ -61,6 +61,7 @@ Options:
   -V, --virt                   Show virtual env info
   -n, --netif                  Show network interfaces
   -N, --netns                  Show network namespace info
+  -K, --k8s                    Show Kubernetes context and namespace
   -m, --memory                 Show memory usage info
   -k, --disk                   Show disk usage info
   -l, --load                   Show system load average info
@@ -169,6 +170,7 @@ Automatically walks parent directories to detect the active repository (prioriti
 - **SSH** (`-s`, `--ssh`): Active SSH session indicator with target server IP and port
 - **Network Interfaces** (`-n`, `--netif`): Active network interfaces with assigned addresses
 - **Network Namespace** (`-N`, `--netns`): Current Linux network namespace (`ip netns`)
+- **Kubernetes** (`-K`, `--k8s`): Active Kubernetes context and non-default namespace parsed directly from `$KUBECONFIG` / `~/.kube/config` (`⎈ prod/api` or `󱃾 prod/api` with `--nerd-font`)
 
 ### Virtualization & Containers (`-V`, `--virt`)
 - **Fast-path detection**: Native zero-fork checks for Docker (`/.dockerenv`), Podman (`/run/.containerenv`), `$container`, and WSL (`WSL_DISTRO_NAME`, `WSL_INTEROP`, `/proc/sys/kernel/osrelease`), with fallback to `systemd-detect-virt`
