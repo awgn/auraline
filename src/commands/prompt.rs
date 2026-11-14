@@ -22,6 +22,7 @@ use crate::providers::os::show as os_show;
 use crate::providers::ssh::show as ssh_show;
 use crate::providers::sudo::show as sudo_show;
 use crate::providers::vcs::{infer_vcs, Vcs, VcsTrait};
+use crate::providers::venv::show as venv_show;
 use crate::providers::virt::show as virt_show;
 use crate::style::build_color_style;
 use crate::Options;
@@ -92,6 +93,7 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
         item![opts.netif, netif_show, &opts, (bold.dimmed(), def.dimmed())],
         item![opts.netns, net_namespace, &opts, (bold, bold)],
         item![opts.k8s, k8s_show, &opts, (color, color.dimmed())],
+        item![opts.venv, venv_show, &opts, (color, color.dimmed())],
         item![opts.manifest, manifest_show, &opts, (color, color.dimmed())],
     ];
 

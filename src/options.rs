@@ -72,8 +72,15 @@ pub struct Options {
     #[clap(short('o'), long, help = "Show OS info")]
     pub os: bool,
 
-    #[clap(short('V'), long, help = "Show virtual env info")]
+    #[clap(short('V'), long, help = "Show virtualization / container info")]
     pub virt: bool,
+
+    #[clap(
+        short('p'),
+        long,
+        help = "Show Python / Conda virtual environment info"
+    )]
+    pub venv: bool,
 
     #[clap(short('n'), long, help = "Show network interfaces")]
     pub netif: bool,
@@ -166,6 +173,7 @@ impl Options {
             || self.sudo
             || self.os
             || self.virt
+            || self.venv
             || self.netif
             || self.netns
             || self.k8s
@@ -193,6 +201,7 @@ impl Semigroup for Options {
             sudo: self.sudo || other.sudo,
             os: self.os || other.os,
             virt: self.virt || other.virt,
+            venv: self.venv || other.venv,
             netif: self.netif || other.netif,
             netns: self.netns || other.netns,
             k8s: self.k8s || other.k8s,

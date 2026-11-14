@@ -13,4 +13,5 @@ pub mod os;
 pub mod ssh;
 pub mod sudo;
 pub mod vcs;
+pub mod venv;
 pub mod virt;

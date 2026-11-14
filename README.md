@@ -58,7 +58,8 @@ Options:
   -s, --ssh                    Show SSH info
   -S, --sudo                   Show cached sudo credentials status
   -o, --os                     Show OS info
-  -V, --virt                   Show virtual env info
+  -V, --virt                   Show virtualization / container info
+  -p, --venv                   Show Python / Conda virtual environment info
   -n, --netif                  Show network interfaces
   -N, --netns                  Show network namespace info
   -K, --k8s                    Show Kubernetes context and namespace
@@ -109,7 +110,7 @@ Profiles
 |-----------|-------------------|------------|
 | `minimal` | `user`, `hostname`, `pwd` *(default)* | No |
 | `lean`    | `user`, `hostname`, `pwd`, `memory`, `disk`, `load`, `ssh`, `sudo`, `netif`, `duration`, `exit_code` | No |
-| `nerdy`   | `user`, `hostname`, `pwd`, `os`, `virt`, `memory`, `disk`, `huge_pages`, `load`, `ssh`, `sudo`, `netif`, `netns`, `manifest`, `vcs`, `duration`, `exit_code` | Yes |
+| `nerdy`   | `user`, `hostname`, `pwd`, `os`, `virt`, `memory`, `disk`, `huge_pages`, `load`, `ssh`, `sudo`, `netif`, `netns`, `venv`, `manifest`, `vcs`, `duration`, `exit_code` | Yes |
 
 Theme Colors
 ------------
@@ -178,6 +179,7 @@ Automatically walks parent directories to detect the active repository (prioriti
 - **Containers**: Docker, Podman, LXC, systemd-nspawn, WSL, OpenVZ
 
 ### Development & Command Execution
+- **Virtualenv** (`-p`, `--venv`): Active Python (`$VIRTUAL_ENV` / `pyvenv.cfg`), Conda (`$CONDA_DEFAULT_ENV`), or Pixi (`$PIXI_ENVIRONMENT_NAME`) environment (`⏣` or `` with `--nerd-font`).
 - **Manifest** (`-M`, `--manifest`): Detects project manifest files in the current directory and displays both the toolchain/compiler version (cached per user and environment context in `/tmp`) and package version (`1.99.0 ↦ v0.15.0`). Supports 50+ languages and build systems including Rust (`Cargo.toml`), C/C++ (`CMakeLists.txt`, `meson.build`, `vcpkg.json`, `conanfile.py`, `xmake.lua`), Go (`go.mod`), Zig (`build.zig.zon`), Python (`pyproject.toml`, `setup.cfg`, `Pipfile`), Node.js/Deno/Bun (`package.json`, `deno.json`), Haskell (`*.cabal`, `stack.yaml`), OCaml (`dune-project`, `*.opam`), Java/Kotlin/Scala (`pom.xml`, `build.gradle`, `build.sbt`), Elixir (`mix.exs`), Dart (`pubspec.yaml`), C# (`*.csproj`), Common Lisp (`*.asd`), Lua (`*.rockspec`), and more.
 - **Duration** (`-e`, `--duration`): Execution time of the last interactive command (`ns`, `μs`, `ms`, `s`).
 - **Exit Code** (`--exit-code <EXIT_CODE>`): Displayed when the last command exits with a non-zero status (`✘ ¹²⁷`), automatically decoding fatal Unix signals (`129..`) into signal names (e.g. `✘ INT`, `✘ KILL`, `✘ SEGV`, `✘ TERM`).
