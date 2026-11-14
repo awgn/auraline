@@ -1,5 +1,4 @@
-use smallvec::SmallVec;
-use smol_str::{format_smolstr, SmolStr};
+use smol_str::{SmolStr, SmolStrBuilder};
 
 use crate::{chunk::Chunk, options::Options};
 
@@ -9,15 +8,17 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     }
 
     let ssh_connection = std::env::var("SSH_CONNECTION").ok()?;
-    let parts = ssh_connection
-        .split_whitespace()
-        .collect::<SmallVec<[&str; 4]>>();
-    if parts.len() >= 4 {
-        Some(Chunk::new(
-            "⇄",
-            format_smolstr!("{}:{}", parts[2], parts[3]),
-        ))
-    } else {
-        None
-    }
+    let mut parts = ssh_connection.split_whitespace();
+    let (_, _, Some(server_ip), Some(server_port)) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return None;
+    };
+
+    let mut builder = SmolStrBuilder::new();
+    builder.push_str(server_ip);
+    builder.push(':');
+    builder.push_str(server_port);
+
+    Some(Chunk::new("⇄", builder.finish()))
 }

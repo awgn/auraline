@@ -10,7 +10,7 @@ use std::str::FromStr;
 
 macro_rules! git_in {
     ( $path:expr, $( $x:expr ),* ) => {
-        CMD.exec_in(Some($path), "git", [$( $x ),*])
+        CMD.exec_in(Some($path), "git", ["--no-optional-locks", $( $x ),*])
     };
 }
 
@@ -19,6 +19,7 @@ pub struct Git {
     git_dir: PathBuf,
     common_dir: PathBuf,
     local_branch: Option<SmolStr>,
+    head_oid: Option<SmolStr>,
     head_hash: Option<SmolStr>,
 }
 
@@ -74,25 +75,51 @@ fn parse_branch_line(line: &str) -> Option<ParsedBranchInfo> {
     })
 }
 
-fn dir_has_any_file(dir: &Path) -> bool {
+fn metadata_stamp(meta: &std::fs::Metadata) -> (u64, u128) {
+    let mtime_ns = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_nanos());
+    (meta.len(), mtime_ns)
+}
+
+fn walk_loose_tags_fp(base: &Path, dir: &Path, acc: &mut u64) -> bool {
+    use std::hash::{Hash, Hasher};
+
     let Ok(entries) = std::fs::read_dir(dir) else {
         return false;
     };
+    let mut found = false;
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.is_file() || (path.is_dir() && dir_has_any_file(&path)) {
-            return true;
+        let Ok(ft) = entry.file_type() else {
+            continue;
+        };
+        if ft.is_dir() {
+            if walk_loose_tags_fp(base, &path, acc) {
+                found = true;
+            }
+        } else if ft.is_file() || ft.is_symlink() {
+            found = true;
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            path.strip_prefix(base).unwrap_or(&path).hash(&mut h);
+            if let Ok(meta) = std::fs::metadata(&path) {
+                metadata_stamp(&meta).hash(&mut h);
+            }
+            // Commutative fold so directory iteration order does not affect the hash.
+            *acc = acc.wrapping_add(h.finish());
         }
     }
-    false
+    found
 }
 
-fn resolve_ref_short_hash(common_dir: &Path, ref_name: &str) -> Option<SmolStr> {
+fn resolve_ref_hashes(common_dir: &Path, ref_name: &str) -> Option<(SmolStr, SmolStr)> {
     let ref_file = common_dir.join(ref_name);
     if let Ok(content) = std::fs::read_to_string(ref_file) {
         let hash = content.lines().next()?.trim();
         if hash.len() >= 8 {
-            return Some(SmolStr::new(&hash[..8]));
+            return Some((SmolStr::new(hash), SmolStr::new(&hash[..8])));
         }
     }
 
@@ -105,10 +132,70 @@ fn resolve_ref_short_hash(common_dir: &Path, ref_name: &str) -> Option<SmolStr> 
         let hash = parts.next()?;
         let r = parts.next()?;
         if r == ref_name && hash.len() >= 8 {
-            return Some(SmolStr::new(&hash[..8]));
+            return Some((SmolStr::new(hash), SmolStr::new(&hash[..8])));
         }
     }
     None
+}
+
+const MAX_DESCRIBE_CACHE_ENTRIES: usize = 64;
+
+fn get_describe_cache_path() -> &'static Path {
+    static PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    PATH.get_or_init(|| {
+        #[cfg(unix)]
+        let id = unsafe { libc::getuid() }.to_string();
+        #[cfg(not(unix))]
+        let id = std::env::var("USER")
+            .or_else(|_| std::env::var("USERNAME"))
+            .unwrap_or_else(|_| "default".to_string());
+        std::env::temp_dir().join(format!("auraline-git-describe-{id}.txt"))
+    })
+}
+
+fn describe_cache_key(common_dir: &Path, head_oid: &str, tags_fp: u64) -> SmolStr {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    common_dir.hash(&mut h);
+    head_oid.hash(&mut h);
+    tags_fp.hash(&mut h);
+    format_smolstr!("{:016x}", h.finish())
+}
+
+fn read_describe_cache(cache_path: &Path, key: &str) -> Option<SmolStr> {
+    let content = std::fs::read_to_string(cache_path).ok()?;
+    for line in content.lines().rev() {
+        let Some((k, val)) = line.split_once('\t') else {
+            continue;
+        };
+        if k == key && !val.is_empty() && val != "-" {
+            return Some(SmolStr::new(val));
+        }
+    }
+    None
+}
+
+fn write_describe_cache(cache_path: &Path, key: &str, value: &str) {
+    let mut kept: Vec<String> = Vec::with_capacity(MAX_DESCRIBE_CACHE_ENTRIES);
+    if let Ok(content) = std::fs::read_to_string(cache_path) {
+        for line in content.lines() {
+            if let Some((k, v)) = line.split_once('\t') {
+                if k != key && !v.is_empty() && v != "-" {
+                    kept.push(line.to_string());
+                }
+            }
+        }
+    }
+    if kept.len() >= MAX_DESCRIBE_CACHE_ENTRIES {
+        let drop_n = kept.len() + 1 - MAX_DESCRIBE_CACHE_ENTRIES;
+        kept.drain(..drop_n);
+    }
+    kept.push(format!("{key}\t{value}"));
+
+    let tmp = cache_path.with_extension(format!("tmp.{}", std::process::id()));
+    if std::fs::write(&tmp, kept.join("\n")).is_ok() && std::fs::rename(&tmp, cache_path).is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
 }
 
 impl Git {
@@ -144,7 +231,7 @@ impl Git {
             })
             .unwrap_or_else(|| git_dir.clone());
 
-        let (local_branch, head_hash) = std::fs::read_to_string(git_dir.join("HEAD"))
+        let (local_branch, head_oid, head_hash) = std::fs::read_to_string(git_dir.join("HEAD"))
             .ok()
             .and_then(|content| {
                 let line = content.lines().next()?.trim();
@@ -154,19 +241,24 @@ impl Git {
                         .strip_prefix("refs/heads/")
                         .map(SmolStr::new)
                         .unwrap_or_else(|| SmolStr::new(ref_path));
-                    let hash = resolve_ref_short_hash(&common_dir, ref_path);
-                    Some((Some(branch), hash))
+                    let (oid, short) = match resolve_ref_hashes(&common_dir, ref_path) {
+                        Some((o, s)) => (Some(o), Some(s)),
+                        None => (None, None),
+                    };
+                    Some((Some(branch), oid, short))
                 } else {
+                    let oid = (line.len() >= 8).then(|| SmolStr::new(line));
                     let short = (line.len() >= 8).then(|| SmolStr::new(&line[..8]));
-                    Some((Some(SmolStr::new_static("HEAD")), short))
+                    Some((Some(SmolStr::new_static("HEAD")), oid, short))
                 }
             })
-            .unwrap_or((None, None));
+            .unwrap_or((None, None, None));
 
         Some(Self {
             git_dir,
             common_dir,
             local_branch,
+            head_oid,
             head_hash,
         })
     }
@@ -188,16 +280,39 @@ impl Git {
         }
     }
 
-    fn has_tags(&self) -> bool {
-        if dir_has_any_file(&self.common_dir.join("refs/tags")) {
-            return true;
-        }
-        if let Ok(packed) = std::fs::read_to_string(self.common_dir.join("packed-refs")) {
-            if packed.contains("refs/tags/") {
-                return true;
+    /// Returns `Some(fingerprint)` if at least one loose or packed tag exists,
+    /// where `fingerprint` changes whenever loose tags or `packed-refs` change.
+    fn tags_fingerprint(&self) -> Option<u64> {
+        use std::hash::{Hash, Hasher};
+
+        let tags_dir = self.common_dir.join("refs/tags");
+        let mut fp: u64 = 0;
+        let mut has_any = walk_loose_tags_fp(&tags_dir, &tags_dir, &mut fp);
+
+        let packed_path = self.common_dir.join("packed-refs");
+        if let Ok(meta) = std::fs::metadata(&packed_path) {
+            let include_packed = if has_any {
+                true
+            } else {
+                std::fs::read_to_string(&packed_path)
+                    .map(|p| p.contains("refs/tags/"))
+                    .unwrap_or(false)
+            };
+            if include_packed {
+                has_any = true;
+                let mut h = std::collections::hash_map::DefaultHasher::new();
+                b"packed-refs".hash(&mut h);
+                metadata_stamp(&meta).hash(&mut h);
+                fp = fp.wrapping_add(h.finish());
             }
         }
-        false
+
+        has_any.then_some(fp)
+    }
+
+    #[cfg(test)]
+    fn has_tags(&self) -> bool {
+        self.tags_fingerprint().is_some()
     }
 
     fn get_action(&self) -> Option<SmolStr> {
@@ -279,9 +394,16 @@ impl VcsTrait for Git {
     }
 
     async fn commit(&self, opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
-        if self.has_tags() {
-            if let Some(c) = git_describe_cmd(opts, path).await {
-                return Some(Chunk::info(c));
+        if let (Some(head_oid), Some(tags_fp)) = (self.head_oid.as_deref(), self.tags_fingerprint())
+        {
+            let cache_path = get_describe_cache_path();
+            let key = describe_cache_key(&self.common_dir, head_oid, tags_fp);
+            if let Some(cached) = read_describe_cache(cache_path, &key) {
+                return Some(Chunk::info(cached));
+            }
+            if let Some(fresh) = git_describe_cmd(opts, path).await {
+                write_describe_cache(cache_path, &key, &fresh);
+                return Some(Chunk::info(fresh));
             }
         }
 
@@ -542,5 +664,33 @@ mod tests {
         assert_eq!(git.get_action().as_deref(), Some("rebase ²⁄₅"));
 
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_describe_cache_roundtrip_and_invalidation() {
+        use super::{read_describe_cache, write_describe_cache};
+
+        let cache = std::env::temp_dir().join(format!(
+            "auraline-test-git-desc-cache-{}.txt",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&cache);
+
+        assert_eq!(read_describe_cache(&cache, "k1"), None);
+        write_describe_cache(&cache, "k1", "v1.0.0▴3∷abcdef01");
+
+        assert_eq!(
+            read_describe_cache(&cache, "k1").as_deref(),
+            Some("v1.0.0▴3∷abcdef01")
+        );
+
+        // Updating an existing key replaces its value cleanly.
+        write_describe_cache(&cache, "k1", "v1.1.0∷abcdef01");
+        assert_eq!(
+            read_describe_cache(&cache, "k1").as_deref(),
+            Some("v1.1.0∷abcdef01")
+        );
+
+        let _ = std::fs::remove_file(&cache);
     }
 }

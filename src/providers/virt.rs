@@ -54,7 +54,7 @@ static VIRTUALIZATION_MAP: phf::Map<&'static str, VirtualizationInfo> = phf_map!
     "container-other" => VirtualizationInfo { icon: "", color: "#A0A0A0", cterm_color: "247", name: "Unknown Container" },
 };
 
-/// Fast-path detection of common containers and WSL without spawning a subprocess.
+/// Fast-path detection of common containers, WSL, and hypervisors without spawning a subprocess.
 fn detect_virt_fast() -> Option<SmolStr> {
     if Path::new("/run/.containerenv").exists() {
         return Some(SmolStr::new_static("podman"));
@@ -68,6 +68,9 @@ fn detect_virt_fast() -> Option<SmolStr> {
             return Some(SmolStr::new(c));
         }
     }
+    if Path::new("/proc/vz").exists() && !Path::new("/proc/bc").exists() {
+        return Some(SmolStr::new_static("openvz"));
+    }
     if std::env::var_os("WSL_DISTRO_NAME").is_some() || std::env::var_os("WSL_INTEROP").is_some() {
         return Some(SmolStr::new_static("wsl"));
     }
@@ -77,6 +80,139 @@ fn detect_virt_fast() -> Option<SmolStr> {
             return Some(SmolStr::new_static("wsl"));
         }
     }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(present) = crate::sys::macos_hv_vmm_present() {
+            return Some(SmolStr::new_static(if present { "apple" } else { "none" }));
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(hv) = detect_linux_hypervisor_sysfs() {
+            return Some(SmolStr::new_static(hv));
+        }
+    }
+
+    None
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn classify_dmi_strings(texts: &[&str]) -> Option<&'static str> {
+    for raw in texts {
+        let s = raw.to_ascii_lowercase();
+        if s.contains("amazon ec2") {
+            return Some("amazon");
+        }
+        if s.contains("google compute engine") || s == "google" {
+            return Some("google");
+        }
+        if s.contains("vmware") {
+            return Some("vmware");
+        }
+        if s.contains("virtualbox") || s.contains("innotek") {
+            return Some("oracle");
+        }
+        if s.contains("parallels") {
+            return Some("parallels");
+        }
+        if s.contains("bhyve") {
+            return Some("bhyve");
+        }
+        if s.contains("xen") {
+            return Some("xen");
+        }
+        if s.contains("kvm") {
+            return Some("kvm");
+        }
+        if s.contains("qemu") {
+            return Some("qemu");
+        }
+        if s.contains("bochs") {
+            return Some("bochs");
+        }
+        if s.contains("apple virtualization") {
+            return Some("apple");
+        }
+        if s.contains("virtual machine") && s.contains("microsoft") {
+            return Some("microsoft");
+        }
+    }
+
+    // Separate vendor="Microsoft Corporation" + product="Virtual Machine" across DMI files.
+    let has_ms = texts
+        .iter()
+        .any(|t| t.to_ascii_lowercase().contains("microsoft"));
+    let has_vm = texts
+        .iter()
+        .any(|t| t.to_ascii_lowercase().contains("virtual machine"));
+    if has_ms && has_vm {
+        return Some("microsoft");
+    }
+
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn detect_linux_hypervisor_sysfs() -> Option<&'static str> {
+    if Path::new("/proc/xen").exists() {
+        return Some("xen");
+    }
+    if let Ok(hv_type) = std::fs::read_to_string("/sys/hypervisor/type") {
+        if hv_type.trim().eq_ignore_ascii_case("xen") {
+            return Some("xen");
+        }
+    }
+    if let Ok(compat) = std::fs::read_to_string("/proc/device-tree/hypervisor/compatible") {
+        let lower = compat.to_ascii_lowercase();
+        if lower.contains("kvm") {
+            return Some("kvm");
+        }
+        if lower.contains("xen") {
+            return Some("xen");
+        }
+        if lower.contains("vmware") {
+            return Some("vmware");
+        }
+    }
+
+    let mut dmi_values = smallvec::SmallVec::<[String; 4]>::new();
+    for path in [
+        "/sys/class/dmi/id/product_name",
+        "/sys/class/dmi/id/sys_vendor",
+        "/sys/class/dmi/id/board_vendor",
+        "/sys/class/dmi/id/bios_vendor",
+    ] {
+        if let Ok(v) = std::fs::read_to_string(path) {
+            let trimmed = v.trim();
+            if !trimmed.is_empty() {
+                dmi_values.push(trimmed.to_string());
+            }
+        }
+    }
+
+    let refs: smallvec::SmallVec<[&str; 4]> = dmi_values.iter().map(String::as_str).collect();
+    if let Some(hv) = classify_dmi_strings(&refs) {
+        return Some(hv);
+    }
+
+    // Bare-metal x86/x86_64 fast-path: if DMI exists, matched no hypervisor, and CPU flags
+    // do not advertise `hypervisor`, skip spawning `systemd-detect-virt`.
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    if !dmi_values.is_empty() {
+        if let Ok(cpuinfo) = std::fs::read_to_string("/proc/cpuinfo") {
+            let has_flags = cpuinfo.lines().any(|l| l.starts_with("flags"));
+            let has_hv_flag = cpuinfo
+                .lines()
+                .filter(|l| l.starts_with("flags"))
+                .any(|l| l.split_whitespace().any(|tok| tok == "hypervisor"));
+            if has_flags && !has_hv_flag {
+                return Some("none");
+            }
+        }
+    }
+
     None
 }
 
@@ -105,4 +241,33 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
             opts.select_str(&virt, icon).to_smolstr()
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::classify_dmi_strings;
+
+    #[test]
+    fn test_classify_dmi_strings() {
+        assert_eq!(
+            classify_dmi_strings(&["Amazon EC2", "t4g.medium"]),
+            Some("amazon")
+        );
+        assert_eq!(
+            classify_dmi_strings(&["Google Compute Engine", "Google"]),
+            Some("google")
+        );
+        assert_eq!(
+            classify_dmi_strings(&["Virtual Machine", "Microsoft Corporation"]),
+            Some("microsoft")
+        );
+        assert_eq!(
+            classify_dmi_strings(&["Standard PC (Q35 + ICH9, 2009)", "QEMU"]),
+            Some("qemu")
+        );
+        assert_eq!(
+            classify_dmi_strings(&["ThinkPad X1 Carbon", "LENOVO"]),
+            None
+        );
+    }
 }

@@ -1,103 +1,103 @@
 use crate::{
     chunk::{Adjoin, Chunk},
     options::Options,
+    sys,
 };
+use smol_str::{SmolStr, SmolStrBuilder};
 
 #[inline]
-pub async fn hostname(opts: &Options) -> Option<Chunk<Adjoin<&'static str, String>>> {
-    opts.hostname
-        .then(|| {
-            whoami::hostname()
+pub async fn hostname(opts: &Options) -> Option<Chunk<Adjoin<&'static str, SmolStr>>> {
+    if !opts.hostname {
+        return None;
+    }
+    sys::hostname().map(|h| Chunk::info(Adjoin(("@", h))))
+}
+
+#[inline]
+pub async fn device_name(opts: &Options) -> Option<Chunk<SmolStr>> {
+    if !opts.device_name {
+        return None;
+    }
+    sys::device_name().await.map(|d| Chunk::new("🖥", d))
+}
+
+#[inline]
+pub async fn user(opts: &Options) -> Option<Chunk<SmolStr>> {
+    if !opts.user {
+        return None;
+    }
+    sys::username().map(Chunk::info)
+}
+
+#[inline]
+pub async fn realname(opts: &Options) -> Option<Chunk<SmolStr>> {
+    if !opts.realname {
+        return None;
+    }
+    sys::realname().map(Chunk::info)
+}
+
+#[inline]
+pub async fn distro(opts: &Options) -> Option<Chunk<SmolStr>> {
+    if !opts.distro {
+        return None;
+    }
+    sys::distro().map(Chunk::info)
+}
+
+#[inline]
+pub async fn pwd(opts: &Options) -> Option<Chunk<SmolStr>> {
+    if !opts.pwd {
+        return None;
+    }
+
+    let home = std::env::var("HOME")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(std::env::home_dir);
+
+    let current_dir = std::env::var("PWD")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::current_dir().ok())?;
+
+    let pwd = if let Some(home) = &home {
+        if let Ok(stripped) = current_dir.strip_prefix(home) {
+            if stripped.as_os_str().is_empty() {
+                SmolStr::new_static("~")
+            } else {
+                let mut builder = SmolStrBuilder::new();
+                builder.push('~');
+                builder.push(std::path::MAIN_SEPARATOR);
+                builder.push_str(&stripped.to_string_lossy());
+                builder.finish()
+            }
+        } else {
+            SmolStr::new(current_dir.to_string_lossy().as_ref())
+        }
+    } else {
+        SmolStr::new(current_dir.to_string_lossy().as_ref())
+    };
+
+    Some(Chunk::info(pwd))
+}
+
+#[inline]
+pub async fn full_pwd(opts: &Options) -> Option<Chunk<SmolStr>> {
+    if !opts.full_pwd {
+        return None;
+    }
+
+    std::env::var("PWD")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(SmolStr::from)
+        .or_else(|| {
+            std::env::current_dir()
                 .ok()
-                .map(|h| Chunk::info(Adjoin(("@", h))))
+                .map(|pwd| SmolStr::new(pwd.to_string_lossy().as_ref()))
         })
-        .flatten()
-}
-
-#[inline]
-pub async fn device_name(opts: &Options) -> Option<Chunk<String>> {
-    opts.device_name
-        .then(|| whoami::devicename().ok().map(|d| Chunk::new("🖥", d)))
-        .flatten()
-}
-
-#[inline]
-pub async fn user(opts: &Options) -> Option<Chunk<String>> {
-    opts.user
-        .then(|| {
-            std::env::var("USER")
-                .ok()
-                .or_else(|| whoami::username().ok())
-                .map(Chunk::info)
-        })
-        .flatten()
-}
-
-#[inline]
-pub async fn realname(opts: &Options) -> Option<Chunk<String>> {
-    opts.realname
-        .then(|| whoami::realname().ok().map(Chunk::info))
-        .flatten()
-}
-
-#[inline]
-pub async fn distro(opts: &Options) -> Option<Chunk<String>> {
-    opts.distro
-        .then(|| whoami::distro().ok().map(Chunk::info))
-        .flatten()
-}
-
-#[inline]
-pub async fn pwd(opts: &Options) -> Option<Chunk<std::borrow::Cow<'static, str>>> {
-    opts.pwd
-        .then(|| {
-            let home = std::env::var("HOME")
-                .map(std::path::PathBuf::from)
-                .ok()
-                .or_else(std::env::home_dir);
-
-            let current_dir = std::env::var("PWD")
-                .map(std::path::PathBuf::from)
-                .ok()
-                .or_else(|| std::env::current_dir().ok());
-
-            current_dir.map(|p| {
-                let pwd = if let Some(home) = &home {
-                    if let Ok(stripped) = p.strip_prefix(home) {
-                        if stripped.as_os_str().is_empty() {
-                            std::borrow::Cow::Borrowed("~")
-                        } else {
-                            std::borrow::Cow::Owned(format!(
-                                "~{}{}",
-                                std::path::MAIN_SEPARATOR,
-                                stripped.display()
-                            ))
-                        }
-                    } else {
-                        std::borrow::Cow::Owned(p.to_string_lossy().into_owned())
-                    }
-                } else {
-                    std::borrow::Cow::Owned(p.to_string_lossy().into_owned())
-                };
-
-                Chunk::info(pwd)
-            })
-        })
-        .flatten()
-}
-
-#[inline]
-pub async fn full_pwd(opts: &Options) -> Option<Chunk<String>> {
-    opts.full_pwd
-        .then(|| {
-            std::env::var("PWD")
-                .ok()
-                .or_else(|| {
-                    std::env::current_dir()
-                        .ok()
-                        .map(|pwd| pwd.to_string_lossy().into_owned())
-                })
-                .map(Chunk::info)
-        })
-        .flatten()
+        .map(Chunk::info)
 }

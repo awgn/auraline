@@ -1,19 +1,21 @@
-use lazy_static::lazy_static;
 use papaya::HashMap;
 use smallvec::SmallVec;
 use smol_str::SmolStr;
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, LazyLock},
+    time::Duration,
 };
 use tokio::process::Command;
 use tokio::sync::OnceCell;
 
-lazy_static! {
-    pub static ref CMD: CmdCache = CmdCache::new();
-    static ref PATH_CACHE: HashMap<&'static str, bool> = HashMap::new();
-}
+/// Defensive timeout preventing hung external tools or wedged network mounts
+/// from freezing interactive shell prompt rendering.
+const CMD_TIMEOUT: Duration = Duration::from_millis(500);
+
+pub static CMD: LazyLock<CmdCache> = LazyLock::new(CmdCache::new);
+static PATH_CACHE: LazyLock<HashMap<&'static str, Option<PathBuf>>> = LazyLock::new(HashMap::new);
 
 #[derive(Debug, Clone)]
 struct CmdOutput(Arc<OnceCell<Option<SmolStr>>>);
@@ -25,21 +27,24 @@ pub struct CmdCache {
     cache: HashMap<CmdKey, CmdOutput>,
 }
 
-/// Checks whether `cmd` resolves to an executable file via `PATH`.
-/// Entirely synchronous and allocation-light; the result is cached by the
-/// caller so this runs at most once per unique command name.
-fn cmd_in_path(cmd: &'static str) -> bool {
+/// Resolves `cmd` to an executable `PathBuf` via `PATH`, caching the result
+/// so each unique command name scans `PATH` at most once per process.
+pub fn resolve_in_path(cmd: &'static str) -> Option<PathBuf> {
     let pinned = PATH_CACHE.pin();
-    *pinned.get_or_insert_with(cmd, || {
-        // Absolute / relative path — just stat it directly.
-        if cmd.contains(std::path::MAIN_SEPARATOR) {
-            Path::new(cmd).is_file()
-        } else {
-            std::env::var_os("PATH")
-                .map(|path_var| std::env::split_paths(&path_var).any(|dir| dir.join(cmd).is_file()))
-                .unwrap_or(false)
-        }
-    })
+    pinned
+        .get_or_insert_with(cmd, || {
+            if cmd.contains(std::path::MAIN_SEPARATOR) {
+                let p = PathBuf::from(cmd);
+                p.is_file().then_some(p)
+            } else {
+                std::env::var_os("PATH").and_then(|path_var| {
+                    std::env::split_paths(&path_var)
+                        .map(|dir| dir.join(cmd))
+                        .find(|candidate| candidate.is_file())
+                })
+            }
+        })
+        .clone()
 }
 
 impl CmdCache {
@@ -81,6 +86,7 @@ impl CmdCache {
         I: IntoIterator<Item = S> + Clone,
         S: AsRef<OsStr>,
     {
+        let resolved_bin = resolve_in_path(cmd);
         let key = Self::make_key(cwd, cmd, args.clone());
         let cell = {
             let pinned = self.cache.pin();
@@ -89,7 +95,7 @@ impl CmdCache {
                     let cell = Arc::new(OnceCell::new());
                     // If the binary doesn't exist in PATH pre-populate with None,
                     // so get_or_init returns immediately without forking.
-                    if !cmd_in_path(cmd) {
+                    if resolved_bin.is_none() {
                         cell.set(None).ok();
                     }
                     CmdOutput(cell)
@@ -104,12 +110,16 @@ impl CmdCache {
         // others wait — without holding any lock.
         cell.0
             .get_or_init(|| async move {
-                let mut command = Command::new(cmd);
-                command.args(args);
+                let bin = resolved_bin?;
+                let mut command = Command::new(bin);
+                command.args(args).kill_on_drop(true);
                 if let Some(dir) = cwd_owned {
                     command.current_dir(dir);
                 }
-                let output = command.output().await.ok()?;
+                let output = tokio::time::timeout(CMD_TIMEOUT, command.output())
+                    .await
+                    .ok()?
+                    .ok()?;
                 if output.status.success() {
                     let text = String::from_utf8_lossy(&output.stdout);
                     Some(SmolStr::new(text.trim_end()))

@@ -3,10 +3,9 @@ use crate::providers::vcs::{merge_icons, StatusIcon, VcsTrait};
 use crate::{chunk::Chunk, options::Options};
 use smallvec::SmallVec;
 use smol_str::{format_smolstr, SmolStr, SmolStrBuilder, ToSmolStr};
+use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
-use tokio::fs;
-use tokio::io::AsyncReadExt;
 
 macro_rules! hg_in {
     ( $path:expr, $( $x:expr ),* ) => {
@@ -19,20 +18,16 @@ pub struct Hg;
 
 impl VcsTrait for Hg {
     async fn branch(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
-        // hg!("branch")
-        //     .await
-        //     .map(|s| Chunk::new("hg ⎇", s.trim().to_smolstr()))
         let path = path.join(".hg").join("branch");
-        let branch = fs::read_to_string(path).await.ok()?;
+        let branch = std::fs::read_to_string(path).ok()?;
         Some(Chunk::new("hg ⎇", branch.trim().to_smolstr()))
     }
 
     async fn commit(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
-        // hg!("id").await.map(|s| Chunk::info(s.trim().to_smolstr()))
-        let hash = get_hg_commit_hash(path).await?;
+        let hash = get_hg_commit_hash(path)?;
 
         let bookmark_path = path.join(".hg").join("bookmarks.current");
-        let bookmark = fs::read_to_string(bookmark_path).await.ok();
+        let bookmark = std::fs::read_to_string(bookmark_path).ok();
         match bookmark {
             Some(bm) if !bm.trim().is_empty() => {
                 let combined = format_smolstr!("{} ({})", hash.trim(), bm.trim());
@@ -43,7 +38,6 @@ impl VcsTrait for Hg {
     }
 
     async fn status(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
-        // TODO: although hg is quite slow, it is very difficult to implement `hg status` without resorting to the `hg` command...
         hg_in!(path, "status").await.and_then(|status| {
             let icons = merge_icons(
                 status
@@ -57,7 +51,7 @@ impl VcsTrait for Hg {
 
     async fn worktree(&self, _opts: &Options, path: &Path) -> Option<Chunk<SmolStr>> {
         let path = path.join(".hg").join("sharedpath");
-        let sharedpath = fs::read_to_string(&path).await.ok()?;
+        let sharedpath = std::fs::read_to_string(path).ok()?;
         sharedpath
             .rfind('/')
             .map(|pos| Chunk::new("⌂", sharedpath[..pos].into()))
@@ -89,31 +83,20 @@ impl FromStr for StatusIcon<Hg> {
     }
 }
 
-async fn get_hg_commit_hash(base: &Path) -> Option<SmolStr> {
-    // Define the path to the dirstate file.
+fn get_hg_commit_hash(base: &Path) -> Option<SmolStr> {
     let dirstate_path = base.join(".hg").join("dirstate");
 
-    // A Mercurial hash is 20 bytes long (which translates to 40 hex characters).
+    // A Mercurial hash is 20 bytes long (40 hex characters).
     let mut hash_bytes = [0u8; 20];
-
-    let mut file = fs::File::open(dirstate_path).await.ok()?;
-
-    // Read exactly 20 bytes from the file into our buffer.
-    // `read_exact` ensures that we get all 20 bytes or it returns an error.
-    file.read_exact(&mut hash_bytes).await.ok()?;
+    let mut file = std::fs::File::open(dirstate_path).ok()?;
+    file.read_exact(&mut hash_bytes).ok()?;
 
     let mut hex_string = SmolStrBuilder::new();
-
     use std::fmt::Write;
-
-    // Iterate over each byte in the buffer and format it as a two-digit
-    // hexadecimal string. Dump only the first 8 bytes (16 hex characters).
     for byte in &hash_bytes[..8] {
         let _ = write!(hex_string, "{:02x}", byte);
     }
-
     hex_string.push('+');
 
-    // Return the resulting hexadecimal string.
     Some(hex_string.finish())
 }

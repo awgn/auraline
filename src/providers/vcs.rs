@@ -71,7 +71,7 @@ impl<T> AsRef<str> for StatusIcon<T> {
     }
 }
 
-pub async fn infer_vcs(start: PathBuf, opts: &Options) -> Option<(Vcs, PathBuf)> {
+pub fn infer_vcs(start: PathBuf, opts: &Options) -> Option<(Vcs, PathBuf)> {
     if !opts.vcs {
         return None;
     }

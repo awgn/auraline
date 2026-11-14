@@ -724,13 +724,13 @@ fn extract_version(strategy: VersionStrategy, content: &str) -> Option<SmolStr> 
 
 /// Read `path` from disk and attempt to extract the version using the strategy
 /// determined by the `Language` and the lookup `key`.
-async fn version_from_file(path: &std::path::Path, lang: Language, key: &str) -> Option<SmolStr> {
+fn version_from_file(path: &std::path::Path, lang: Language, key: &str) -> Option<SmolStr> {
     let strategy = project_version_strategy(lang, key)?;
-    let content = tokio::fs::read_to_string(path).await.ok()?;
+    let content = std::fs::read_to_string(path).ok()?;
     extract_version(strategy, &content)
 }
 
-const CACHE_TTL_SECS: u64 = 10; // 10 seconds
+const CACHE_TTL_SECS: u64 = 3600; // 1 hour (auto-invalidated on binary/shim/env/toolchain change)
 
 fn get_cache_path() -> &'static std::path::Path {
     static CACHE_PATH: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
@@ -745,25 +745,184 @@ fn get_cache_path() -> &'static std::path::Path {
     })
 }
 
-/// Computes a lightweight context key for `lang` that includes the current working
-/// directory and active environment variables (e.g. `VIRTUAL_ENV`, `PATH`),
-/// preventing stale cached tool versions when switching directories or virtualenvs.
+fn tool_binary_name(lang: Language) -> Option<&'static str> {
+    match lang {
+        Language::Rust => Some("rustc"),
+        Language::Go => Some("go"),
+        Language::Python => Some("python"),
+        Language::JavaScript | Language::TypeScript => Some("node"),
+        Language::Java => Some("javac"),
+        Language::Ruby => Some("ruby"),
+        Language::Php => Some("php"),
+        Language::Dart => Some("dart"),
+        Language::Julia => Some("julia"),
+        Language::Zig => Some("zig"),
+        Language::Nim => Some("nim"),
+        Language::Elixir => Some("elixir"),
+        Language::CSharp | Language::FSharp => Some("dotnet"),
+        Language::CCpp => Some("cmake"),
+        Language::Haskell => Some("ghc"),
+        Language::OCaml => Some("ocamlc"),
+        Language::Kotlin => Some("kotlin"),
+        Language::Scala => Some("scala"),
+        Language::Lua => Some("lua"),
+        Language::D => Some("dmd"),
+        _ => None,
+    }
+}
+
+fn hash_file_stamp(path: &std::path::Path, hasher: &mut impl std::hash::Hasher) -> bool {
+    use std::hash::Hash;
+    let Ok(meta) = std::fs::metadata(path) else {
+        return false;
+    };
+    path.hash(hasher);
+    meta.len().hash(hasher);
+    if let Ok(mtime) = meta.modified() {
+        if let Ok(dur) = mtime.duration_since(std::time::UNIX_EPOCH) {
+            dur.as_nanos().hash(hasher);
+        }
+    }
+    true
+}
+
+fn hash_ancestor_override(
+    start: &std::path::Path,
+    candidates: &[&str],
+    hasher: &mut impl std::hash::Hasher,
+) {
+    let mut cur = Some(start);
+    while let Some(dir) = cur {
+        for name in candidates {
+            let p = dir.join(name);
+            if hash_file_stamp(&p, hasher) {
+                return;
+            }
+        }
+        cur = dir.parent();
+    }
+}
+
+/// Computes a toolchain fingerprint key for `lang` based on the resolved compiler
+/// binary + mtime, active version-manager environment variables, and any local
+/// toolchain override file (e.g. `rust-toolchain.toml`, `.nvmrc`, `.tool-versions`).
+/// Repositories sharing the same toolchain reuse a single cached entry across directories.
 fn cache_key_for_lang(lang: Language) -> SmolStr {
+    let cwd = std::env::current_dir().ok();
+    cache_key_for_lang_in(lang, cwd.as_deref())
+}
+
+fn cache_key_for_lang_in(lang: Language, cwd: Option<&std::path::Path>) -> SmolStr {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    if let Ok(cwd) = std::env::current_dir() {
-        cwd.hash(&mut hasher);
+
+    if let Some(bin_name) = tool_binary_name(lang) {
+        let resolved = crate::cmd::resolve_in_path(bin_name).or_else(|| {
+            (lang == Language::Python).then(|| crate::cmd::resolve_in_path("python3"))?
+        });
+        if let Some(bin_path) = resolved {
+            hash_file_stamp(&bin_path, &mut hasher);
+        }
     }
-    if let Ok(venv) = std::env::var("VIRTUAL_ENV") {
-        venv.hash(&mut hasher);
+
+    for var in ["ASDF_DIR", "MISE_SHELL", "PROTO_HOME"] {
+        if let Some(v) = std::env::var_os(var) {
+            var.hash(&mut hasher);
+            v.hash(&mut hasher);
+        }
     }
-    if let Some(path) = std::env::var_os("PATH") {
-        path.hash(&mut hasher);
+
+    match lang {
+        Language::Rust => {
+            if let Some(tc) = std::env::var_os("RUSTUP_TOOLCHAIN") {
+                tc.hash(&mut hasher);
+            }
+            let rustup_settings = std::env::var_os("RUSTUP_HOME")
+                .map(std::path::PathBuf::from)
+                .or_else(|| {
+                    std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".rustup"))
+                })
+                .map(|p| p.join("settings.toml"));
+            if let Some(settings) = rustup_settings {
+                hash_file_stamp(&settings, &mut hasher);
+            }
+            if let Some(dir) = cwd {
+                hash_ancestor_override(
+                    dir,
+                    &["rust-toolchain.toml", "rust-toolchain"],
+                    &mut hasher,
+                );
+            }
+        }
+        Language::Python => {
+            for var in ["VIRTUAL_ENV", "CONDA_PREFIX", "PYENV_VERSION"] {
+                if let Some(v) = std::env::var_os(var) {
+                    var.hash(&mut hasher);
+                    v.hash(&mut hasher);
+                }
+            }
+            if let Some(dir) = cwd {
+                hash_ancestor_override(dir, &[".python-version"], &mut hasher);
+            }
+        }
+        Language::JavaScript | Language::TypeScript => {
+            for var in [
+                "NVM_BIN",
+                "FNM_MULTISHELL_PATH",
+                "VOLTA_HOME",
+                "NODE_VERSION",
+            ] {
+                if let Some(v) = std::env::var_os(var) {
+                    var.hash(&mut hasher);
+                    v.hash(&mut hasher);
+                }
+            }
+            if let Some(dir) = cwd {
+                hash_ancestor_override(dir, &[".nvmrc", ".node-version"], &mut hasher);
+            }
+        }
+        Language::Ruby => {
+            for var in ["RBENV_VERSION", "GEM_HOME"] {
+                if let Some(v) = std::env::var_os(var) {
+                    var.hash(&mut hasher);
+                    v.hash(&mut hasher);
+                }
+            }
+            if let Some(dir) = cwd {
+                hash_ancestor_override(dir, &[".ruby-version"], &mut hasher);
+            }
+        }
+        Language::Go => {
+            for var in ["GOROOT", "GOTOOLCHAIN"] {
+                if let Some(v) = std::env::var_os(var) {
+                    var.hash(&mut hasher);
+                    v.hash(&mut hasher);
+                }
+            }
+        }
+        Language::Java | Language::Kotlin | Language::Scala => {
+            if let Some(v) = std::env::var_os("JAVA_HOME") {
+                v.hash(&mut hasher);
+            }
+        }
+        Language::Elixir => {
+            if let Some(v) = std::env::var_os("MIX_HOME") {
+                v.hash(&mut hasher);
+            }
+        }
+        _ => {}
     }
+
+    if let Some(dir) = cwd {
+        for f in [".tool-versions", "mise.toml", ".mise.toml"] {
+            hash_file_stamp(&dir.join(f), &mut hasher);
+        }
+    }
+
     format_smolstr!("{:?}@{:x}", lang, hasher.finish())
 }
 
-fn read_cached_version(lang: Language) -> Option<SmolStr> {
+fn read_cached_version(key: &str) -> Option<SmolStr> {
     let cache_path = get_cache_path();
     let content = std::fs::read_to_string(cache_path).ok()?;
     let now = std::time::SystemTime::now()
@@ -771,14 +930,12 @@ fn read_cached_version(lang: Language) -> Option<SmolStr> {
         .ok()?
         .as_secs();
 
-    let key = cache_key_for_lang(lang);
-
     for line in content.lines() {
         let mut parts = line.splitn(3, ':');
         let name = parts.next()?;
         let version = parts.next()?;
         let timestamp_str = parts.next()?;
-        if name == key.as_str() {
+        if name == key {
             let timestamp: u64 = timestamp_str.parse().ok()?;
             if now >= timestamp && now - timestamp < CACHE_TTL_SECS {
                 return Some(SmolStr::new(version));
@@ -788,14 +945,13 @@ fn read_cached_version(lang: Language) -> Option<SmolStr> {
     None
 }
 
-fn write_cached_version(lang: Language, version: &str) -> Option<()> {
+fn write_cached_version(key: &str, version: &str) -> Option<()> {
     let cache_path = get_cache_path();
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .ok()?
         .as_secs();
 
-    let key = cache_key_for_lang(lang);
     let mut lines = Vec::new();
 
     if let Ok(content) = std::fs::read_to_string(cache_path) {
@@ -805,7 +961,7 @@ fn write_cached_version(lang: Language, version: &str) -> Option<()> {
             else {
                 continue;
             };
-            if name != key.as_str() {
+            if name != key {
                 if let Ok(ts) = ts_str.parse::<u64>() {
                     if now >= ts && now - ts < CACHE_TTL_SECS {
                         lines.push(line.to_string());
@@ -828,12 +984,13 @@ fn write_cached_version(lang: Language, version: &str) -> Option<()> {
 }
 
 async fn build_system_version(lang: Language) -> Option<SmolStr> {
-    if let Some(cached) = read_cached_version(lang) {
+    let key = cache_key_for_lang(lang);
+    if let Some(cached) = read_cached_version(&key) {
         return Some(cached);
     }
 
     let version = build_system_version_uncached(lang).await?;
-    write_cached_version(lang, &version);
+    write_cached_version(&key, &version);
     Some(version)
 }
 
@@ -947,18 +1104,16 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
         return None;
     }
 
-    let mut entries = tokio::fs::read_dir(".").await.ok()?;
+    let entries = std::fs::read_dir(".").ok()?;
     let mut top_kind: Option<MatchKind> = None;
     let mut top_icons: SmallVec<[&'static str; 8]> = SmallVec::new();
     // All ProjectManifest entries found during the scan, in filesystem order.
     // We will try each in sequence and return the first that yields a version.
     let mut manifests: SmallVec<[(std::path::PathBuf, Language, SmolStr); 4]> = SmallVec::new();
 
-    loop {
-        let entry = match entries.next_entry().await {
-            Ok(Some(entry)) => entry,
-            Ok(None) => break,
-            Err(_) => continue,
+    for entry_res in entries {
+        let Ok(entry) = entry_res else {
+            continue;
         };
         let file_name = entry.file_name();
         // Skip non-UTF-8 names (continue instead of aborting the whole scan).
@@ -1021,18 +1176,12 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
     let version = if top_kind == MatchKind::ProjectManifest && !manifests.is_empty() {
         let primary_lang = manifests[0].1;
 
-        // Run the tool version command and the file version extraction in parallel
-        let tool_version_fut = build_system_version(primary_lang);
-        let found_fut = async {
-            for (path, lang, key) in &manifests {
-                if let Some(v) = version_from_file(path, *lang, key).await {
-                    return Some(v);
-                }
-            }
-            None
-        };
-
-        let (tool_version, found) = tokio::join!(tool_version_fut, found_fut);
+        // Overlap tool subprocess (if cache miss) with synchronous local manifest parsing.
+        let (tool_version, found) = tokio::join!(build_system_version(primary_lang), async {
+            manifests
+                .iter()
+                .find_map(|(path, lang, key)| version_from_file(path, *lang, key))
+        });
 
         match (tool_version, found) {
             (Some(tv), Some(pv)) => Some(format_smolstr!("{} ↦ v{}", tv, pv)),
@@ -1142,5 +1291,34 @@ version = "9.9.9"
             extract_version(VersionStrategy::PomXmlVersion, inherited_only).as_deref(),
             Some("4.0.0")
         );
+    }
+
+    #[test]
+    fn test_cache_key_shared_across_dirs_unless_toolchain_override_exists() {
+        use super::{cache_key_for_lang_in, Language};
+
+        let base =
+            std::env::temp_dir().join(format!("auraline-manifest-key-test-{}", std::process::id()));
+        let repo_a = base.join("repo_a");
+        let repo_b = base.join("repo_b");
+        let repo_pinned = base.join("repo_pinned");
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&repo_a).unwrap();
+        std::fs::create_dir_all(&repo_b).unwrap();
+        std::fs::create_dir_all(&repo_pinned).unwrap();
+        std::fs::write(
+            repo_pinned.join("rust-toolchain.toml"),
+            "[toolchain]\nchannel = \"nightly\"\n",
+        )
+        .unwrap();
+
+        let key_a = cache_key_for_lang_in(Language::Rust, Some(&repo_a));
+        let key_b = cache_key_for_lang_in(Language::Rust, Some(&repo_b));
+        let key_pinned = cache_key_for_lang_in(Language::Rust, Some(&repo_pinned));
+
+        assert_eq!(key_a, key_b);
+        assert_ne!(key_a, key_pinned);
+
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

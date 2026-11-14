@@ -5,6 +5,7 @@ mod commands;
 mod options;
 mod providers;
 mod style;
+mod sys;
 
 use crate::options::{Cli, Options};
 
@@ -52,8 +53,7 @@ fn resolve_prompt_options(
     Ok(options)
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
         options::Commands::Init(options) => {
@@ -72,7 +72,12 @@ async fn main() -> anyhow::Result<()> {
                 env_theme.as_deref(),
             )?;
 
-            commands::prompt::print_prompt(options).await?;
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .context("failed to initialize async runtime")?;
+
+            rt.block_on(commands::prompt::print_prompt(options))?;
         }
     }
 

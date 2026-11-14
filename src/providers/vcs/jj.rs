@@ -45,12 +45,35 @@ fn parse_jj_header(line: &str) -> Option<JjHeader<'_>> {
 }
 
 async fn query_jj(path: &Path) -> Option<SmolStr> {
+    if let Some(out) = CMD
+        .exec_in(
+            Some(path),
+            "jj",
+            [
+                "log",
+                "--no-graph",
+                "--color",
+                "never",
+                "--no-pager",
+                "-r",
+                "@",
+                "-T",
+                JJ_SNAPSHOT_TEMPLATE,
+            ],
+        )
+        .await
+    {
+        return Some(out);
+    }
+
+    // Fallback when working copy cannot be snapshotted (e.g. read-only mount or lock contention).
     CMD.exec_in(
         Some(path),
         "jj",
         [
             "log",
             "--no-graph",
+            "--ignore-working-copy",
             "--color",
             "never",
             "--no-pager",

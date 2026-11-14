@@ -118,11 +118,8 @@ fn parse_os_release_info(os_release: &str) -> Option<&'static OsInfo> {
 }
 
 // see few examples @ https://gist.github.com/natefoo/814c5bf936922dad97ff
-pub async fn lsb_info() -> Option<&'static OsInfo> {
-    let os_release = std::fs::read_to_string("/etc/os-release")
-        .or_else(|_| std::fs::read_to_string("/usr/lib/os-release"))
-        .ok()?;
-    parse_os_release_info(&os_release)
+pub fn lsb_info() -> Option<&'static OsInfo> {
+    parse_os_release_info(crate::sys::os_release_content()?)
 }
 
 pub async fn show(opts: &Options) -> Option<Chunk<Unit>> {
@@ -131,7 +128,7 @@ pub async fn show(opts: &Options) -> Option<Chunk<Unit>> {
     }
 
     let info = match std::env::consts::OS {
-        "linux" => lsb_info().await,
+        "linux" => lsb_info(),
         "windows" => OS_MAP.get("windows"),
         "macos" | "ios" | "apple" => OS_MAP.get("apple"),
         "openbsd" => OS_MAP.get("openbsd"),
