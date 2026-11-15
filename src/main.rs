@@ -109,6 +109,8 @@ mod tests {
         assert!(resolved.user);
         assert!(resolved.hostname);
         assert!(resolved.pwd);
+        assert!(resolved.shlvl);
+        assert!(resolved.jobs);
         assert!(!resolved.vcs);
     }
 
@@ -132,5 +134,40 @@ mod tests {
         };
         assert!(resolve_prompt_options(cli, None, None, None).is_err());
         assert!(resolve_prompt_options(Options::default(), Some("typo"), None, None).is_err());
+    }
+
+    #[test]
+    fn test_full_profile_enables_all_providers() {
+        let resolved =
+            resolve_prompt_options(Options::default(), Some("full"), None, None).unwrap();
+        assert!(resolved.user);
+        assert!(resolved.realname);
+        assert!(resolved.hostname);
+        assert!(resolved.device_name);
+        assert!(resolved.distro);
+        assert!(resolved.pwd);
+        assert!(resolved.full_pwd);
+        assert!(resolved.shlvl);
+        assert!(resolved.os);
+        assert!(resolved.virt);
+        assert!(resolved.venv);
+        assert!(resolved.nix);
+        assert!(resolved.memory);
+        assert!(resolved.disk);
+        assert!(resolved.load);
+        assert!(resolved.psi);
+        assert!(resolved.cpu_gov);
+        assert!(resolved.battery);
+        assert!(resolved.huge_pages);
+        assert!(resolved.ssh);
+        assert!(resolved.sudo);
+        assert!(resolved.netif);
+        assert!(resolved.netns);
+        assert!(resolved.k8s);
+        assert!(resolved.manifest);
+        assert!(resolved.vcs);
+        assert!(resolved.jobs);
+        assert!(resolved.duration);
+        assert!(resolved.nerd_font);
     }
 }

@@ -79,7 +79,7 @@ Options:
       --timings                Enable timings mode (dev)
       --theme <THEME>          Specify the theme color
       --nerd-font              Use Nerd Fonts
-      --profile <PROFILE>      Specify the prompt profile to use: minimal, lean, nerdy
+      --profile <PROFILE>      Specify the prompt profile to use: minimal, lean, nerdy, full
 ```
 
 Shell Integration & Environment Variables
@@ -105,7 +105,7 @@ eval "$(auraline init zsh)"
 
 ### Environment Variables
 
-- **`AURALINE_PROFILE`**: Selects a base profile (`minimal`, `lean`, or `nerdy`).
+- **`AURALINE_PROFILE`**: Selects a base profile (`minimal`, `lean`, `nerdy`, or `full`).
 - **`AURALINE_OPTIONS`**: Space-separated extra flags merged on top of the active profile (e.g. `export AURALINE_OPTIONS="--full-pwd --realname"`).
 - **`AURALINE_THEME`**: Sets the accent color (named ANSI color or `R,G,B` truecolor tuple).
 
@@ -114,9 +114,10 @@ Profiles
 
 | Profile   | Enabled Providers | Nerd Fonts |
 |-----------|-------------------|------------|
-| `minimal` | `user`, `hostname`, `pwd` *(default)* | No |
-| `lean`    | `user`, `hostname`, `pwd`, `shlvl`, `memory`, `disk`, `load`, `ssh`, `sudo`, `netif`, `jobs`, `duration`, `exit_code` | No |
+| `minimal` | `user`, `hostname`, `pwd`, `shlvl`, `jobs`, `exit_code` *(default)* | No |
+| `lean`    | `user`, `hostname`, `pwd`, `shlvl`, `virt`, `memory`, `disk`, `load`, `psi`, `ssh`, `sudo`, `netif`, `netns`, `jobs`, `duration`, `exit_code` | No |
 | `nerdy`   | `user`, `hostname`, `pwd`, `shlvl`, `os`, `virt`, `memory`, `disk`, `huge_pages`, `load`, `psi`, `ssh`, `sudo`, `netif`, `netns`, `nix`, `venv`, `manifest`, `vcs`, `jobs`, `duration`, `exit_code` | Yes |
+| `full`    | All providers (`user`, `realname`, `hostname`, `device_name`, `distro`, `full_pwd`, `shlvl`, `os`, `virt`, `memory`, `disk`, `huge_pages`, `load`, `psi`, `cpu_gov`, `battery`, `ssh`, `sudo`, `netif`, `netns`, `k8s`, `nix`, `venv`, `manifest`, `vcs`, `jobs`, `duration`, `exit_code`) | Yes |
 
 Theme Colors
 ------------
@@ -144,7 +145,7 @@ auraline prompt --profile nerdy --theme 128,0,128
 Supported Providers
 -------------------
 
-All enabled providers execute concurrently on a Tokio runtime; non-VCS providers run in parallel while VCS root discovery walks the directory tree.
+All enabled providers execute concurrently on a Tokio runtime; non-VCS providers run in parallel while VCS root discovery walks the directory tree. Consecutive active providers that resolve to the same value automatically coalesce their icons with `˖` (e.g. `˖ auraline`), while `--full-pwd` (`-W`) supersedes `--pwd` (`-w`) and `--distro` (`-D`) supersedes the non-Nerd-Font text fallback of `--os` (`-o`).
 
 ### Basic Information
 - **User** (`-u`, `--user`): Current username

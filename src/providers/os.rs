@@ -123,7 +123,7 @@ pub fn lsb_info() -> Option<&'static OsInfo> {
 }
 
 pub async fn show(opts: &Options) -> Option<Chunk<Unit>> {
-    if !opts.os {
+    if !opts.os || (opts.distro && !opts.nerd_font && crate::sys::distro().is_some()) {
         return None;
     }
 

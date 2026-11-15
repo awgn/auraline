@@ -1,11 +1,12 @@
 use frunk::{hlist, HCons, HNil};
 use owo_colors::Style;
+use smallvec::SmallVec;
 use std::env;
 use std::fmt::{Display, Write as _};
 use std::io::Write as _;
 use std::time::Duration;
 
-use crate::chunk::Chunk;
+use crate::chunk::{push_coalesced, Chunk, FlatChunk};
 use crate::providers::basic::{device_name, distro, full_pwd, hostname, pwd, realname, user};
 use crate::providers::battery::show as battery_show;
 use crate::providers::cpu_gov::show as cpu_gov_show;
@@ -92,13 +93,13 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
         sudo: item![opts.sudo, sudo_show, &opts, (bold.yellow(), bold)],
         user: item![opts.user, user, &opts, (color, bold)],
         realname: item![opts.realname, realname, &opts, (color, bold)],
-        hostname: item![opts.hostname, hostname, &opts, (color, bold.dimmed())],
+        hostname: item![opts.hostname, hostname, &opts, (bold.dimmed(), bold.dimmed())],
         device_name: item![opts.device_name, device_name, &opts, (color, bold.dimmed())],
-        distro: item![opts.distro, distro, &opts, (color, bold.dimmed())],
         pwd: item![opts.pwd, pwd, &opts, (color, bold)],
         full_pwd: item![opts.full_pwd, full_pwd, &opts, (color, bold)],
         shlvl: item![opts.shlvl, shlvl_show, &opts, (color, color.bold())],
         os: item![opts.os, os_show, &opts, (color, bold)],
+        distro: item![opts.distro, distro, &opts, (color, bold.dimmed())],
         virt: item![opts.virt, virt_show, &opts, (bold, bold)],
         memory: item![opts.memory, memory_show, &opts, (bold, bold)],
         disk: item![opts.disk, disk_show, &opts, (bold, bold)],
@@ -173,11 +174,16 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
         post.print_timings();
         println!("{:<40} -> {:>15?}", "total time", start.elapsed());
     } else {
-        let mut out = String::with_capacity(256);
-        pre.write_chunks(&mut out);
-        vcs_res.write_chunks(&mut out);
-        post.write_chunks(&mut out);
-        if !out.is_empty() {
+        let mut chunks = SmallVec::<[FlatChunk; 16]>::new();
+        pre.collect_chunks(&mut chunks);
+        vcs_res.collect_chunks(&mut chunks);
+        post.collect_chunks(&mut chunks);
+
+        if !chunks.is_empty() {
+            let mut out = String::with_capacity(256);
+            for chunk in &chunks {
+                let _ = write!(out, "{chunk} ");
+            }
             let _ = std::io::stdout().write_all(out.as_bytes());
         }
     }
@@ -186,13 +192,13 @@ pub async fn print_prompt(opts: Options) -> anyhow::Result<()> {
 }
 
 trait HListRender {
-    fn write_chunks(self, out: &mut String);
+    fn collect_chunks(self, acc: &mut SmallVec<[FlatChunk; 16]>);
     fn print_timings(self);
 }
 
 impl HListRender for HNil {
     #[inline]
-    fn write_chunks(self, _out: &mut String) {}
+    fn collect_chunks(self, _acc: &mut SmallVec<[FlatChunk; 16]>) {}
     #[inline]
     fn print_timings(self) {}
 }
@@ -203,11 +209,11 @@ where
     T: HListRender,
 {
     #[inline]
-    fn write_chunks(self, out: &mut String) {
+    fn collect_chunks(self, acc: &mut SmallVec<[FlatChunk; 16]>) {
         if let (_, _, Some(c)) = self.head {
-            let _ = write!(out, "{c} ");
+            push_coalesced(acc, c.into_flat());
         }
-        self.tail.write_chunks(out);
+        self.tail.collect_chunks(acc);
     }
 
     fn print_timings(self) {

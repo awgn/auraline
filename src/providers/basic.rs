@@ -1,16 +1,12 @@
-use crate::{
-    chunk::{Adjoin, Chunk},
-    options::Options,
-    sys,
-};
+use crate::{chunk::Chunk, options::Options, sys};
 use smol_str::{SmolStr, SmolStrBuilder};
 
 #[inline]
-pub async fn hostname(opts: &Options) -> Option<Chunk<Adjoin<&'static str, SmolStr>>> {
+pub async fn hostname(opts: &Options) -> Option<Chunk<SmolStr>> {
     if !opts.hostname {
         return None;
     }
-    sys::hostname().map(|h| Chunk::info(Adjoin(("@", h))))
+    sys::hostname().map(|h| Chunk::adjoin("@", h))
 }
 
 #[inline]
@@ -47,7 +43,7 @@ pub async fn distro(opts: &Options) -> Option<Chunk<SmolStr>> {
 
 #[inline]
 pub async fn pwd(opts: &Options) -> Option<Chunk<SmolStr>> {
-    if !opts.pwd {
+    if !opts.pwd || opts.full_pwd {
         return None;
     }
 

@@ -168,7 +168,10 @@ pub struct Options {
     #[clap(long, help = "Use Nerd Fonts")]
     pub nerd_font: bool,
 
-    #[clap(long, help = "Specify the prompt profile to use: minimal, lean, nerdy")]
+    #[clap(
+        long,
+        help = "Specify the prompt profile to use: minimal, lean, nerdy, full"
+    )]
     pub profile: Option<SmolStr>,
 }
 
