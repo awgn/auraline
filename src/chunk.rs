@@ -319,31 +319,31 @@ mod tests {
         ]);
         assert_eq!(s1, "Nicola ");
 
-        // 2. Two icons with identical info ("❄ dev" + "⏣ dev" -> "❄˖⏣ dev ")
+        // 2. Two icons with identical info ("✻ dev" + "⏣ dev" -> "✻˖⏣ dev ")
         let plain = Style::new();
         let s2 = render_seq([
-            Chunk::new("❄", "dev")
+            Chunk::new("✻", "dev")
                 .with_style(plain, plain, ShellMode::None)
                 .into_flat(),
             Chunk::new("⏣", "dev")
                 .with_style(plain, plain, ShellMode::None)
                 .into_flat(),
         ]);
-        assert_eq!(s2, "❄\x1b[2m˖\x1b[0m⏣ dev ");
+        assert_eq!(s2, "✻\x1b[2m˖\x1b[0m⏣ dev ");
 
-        // 3. Adjoin `@` + normal `🖥` with identical host -> `@˖🖥 box `
+        // 3. Adjoin `@` + normal `⎚` with identical host -> `@˖⎚ box `
         let s3 = render_seq([
             Chunk::adjoin("@", "box").into_flat(),
-            Chunk::new("🖥", "box").into_flat(),
+            Chunk::new("⎚", "box").into_flat(),
         ]);
-        assert_eq!(s3, "@\x1b[2m˖\x1b[0m🖥 box ");
+        assert_eq!(s3, "@\x1b[2m˖\x1b[0m⎚ box ");
 
         // 4. Icon-only chunks (`info: None`) must NEVER merge with each other
         let s4 = render_seq([
-            Chunk::<Unit>::icon("⚡").into_flat(),
+            Chunk::<Unit>::icon("↯").into_flat(),
             Chunk::<Unit>::icon("").into_flat(),
         ]);
-        assert_eq!(s4, "⚡  ");
+        assert_eq!(s4, "↯  ");
 
         // 5. Zsh non-printing escape wrapping around `˖`
         let s5 = render_seq([

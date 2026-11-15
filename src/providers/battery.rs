@@ -33,7 +33,7 @@ fn select_battery_icon(info: BatteryInfo, nerd_font: bool) -> &'static str {
         }
     } else {
         match info.status {
-            BatteryStatus::Charging => "⚡",
+            BatteryStatus::Charging => "⌁",
             BatteryStatus::Full => "▮",
             BatteryStatus::Discharging => {
                 if info.percent <= 20 {

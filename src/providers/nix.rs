@@ -55,7 +55,7 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
         nix_build_top.as_deref(),
         direnv_dir.as_deref(),
     )? {
-        EnvKind::Nix(label) => Some(Chunk::new(opts.select_str("❄", ""), label)),
+        EnvKind::Nix(label) => Some(Chunk::new(opts.select_str("✻", ""), label)),
         EnvKind::Direnv => Some(Chunk::new(
             opts.select_str("▼", "󰁿"),
             SmolStr::new_static("direnv"),

@@ -41,7 +41,7 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
         return None;
     }
     let gov = read_system_governor()?;
-    Some(Chunk::new(opts.select_str("⚙", "󰓅"), gov))
+    Some(Chunk::new(opts.select_str("⦿", "󰓅"), gov))
 }
 
 #[cfg(test)]

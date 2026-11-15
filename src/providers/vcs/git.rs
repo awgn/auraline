@@ -501,7 +501,7 @@ impl FromStr for StatusIcon<Git> {
             // Unmerged states (conflicts)
             (b'D', b'D') => Ok(StatusIcon::new("✖")), // Both deleted
             (b'A', b'A') => Ok(StatusIcon::new("⧉")), // Both added
-            (b'U', b'U') => Ok(StatusIcon::new("⚠")), // Both modified - warning
+            (b'U', b'U') => Ok(StatusIcon::new("≠")), // Both modified - conflict
             (b'A', b'U') => Ok(StatusIcon::new("⊕")), // Added by us
             (b'U', b'A') => Ok(StatusIcon::new("⊞")), // Added by them
             (b'D', b'U') => Ok(StatusIcon::new("⊖")), // Deleted by us

@@ -66,7 +66,7 @@ pub async fn show(opts: &Options) -> Option<Chunk<SmolStr>> {
         return None;
     }
     let summary = read_system_psi()?;
-    Some(Chunk::new(opts.select_str("⚠", "󰀦"), summary))
+    Some(Chunk::new(opts.select_str("⟁", "󰀦"), summary))
 }
 
 #[cfg(test)]

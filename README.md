@@ -76,6 +76,7 @@ Options:
   -j, --jobs                   Show background / suspended shell jobs
   -e, --duration               Show the duration of the last command
       --exit-code <EXIT_CODE>  Specify the exit-code of the last command to show
+      --shell <SHELL>          Wrap non-printing ANSI sequences for shell prompt [possible values: none, bash, zsh]
       --timings                Enable timings mode (dev)
       --theme <THEME>          Specify the theme color
       --nerd-font              Use Nerd Fonts
@@ -106,7 +107,7 @@ eval "$(auraline init zsh)"
 ### Environment Variables
 
 - **`AURALINE_PROFILE`**: Selects a base profile (`minimal`, `lean`, `nerdy`, or `full`).
-- **`AURALINE_OPTIONS`**: Space-separated extra flags merged on top of the active profile (e.g. `export AURALINE_OPTIONS="--full-pwd --realname"`).
+- **`AURALINE_OPTIONS`**: Space-separated extra flags merged on top of the active profile (e.g. `export AURALINE_OPTIONS="--full-pwd --k8s"`).
 - **`AURALINE_THEME`**: Sets the accent color (named ANSI color or `R,G,B` truecolor tuple).
 
 Profiles
@@ -117,7 +118,7 @@ Profiles
 | `minimal` | `user`, `hostname`, `pwd`, `shlvl`, `jobs`, `exit_code` *(default)* | No |
 | `lean`    | `user`, `hostname`, `pwd`, `shlvl`, `virt`, `memory`, `disk`, `load`, `psi`, `ssh`, `sudo`, `netif`, `netns`, `jobs`, `duration`, `exit_code` | No |
 | `nerdy`   | `user`, `hostname`, `pwd`, `shlvl`, `os`, `virt`, `memory`, `disk`, `huge_pages`, `load`, `psi`, `ssh`, `sudo`, `netif`, `netns`, `nix`, `venv`, `manifest`, `vcs`, `jobs`, `duration`, `exit_code` | Yes |
-| `full`    | All providers (`user`, `realname`, `hostname`, `device_name`, `distro`, `full_pwd`, `shlvl`, `os`, `virt`, `memory`, `disk`, `huge_pages`, `load`, `psi`, `cpu_gov`, `battery`, `ssh`, `sudo`, `netif`, `netns`, `k8s`, `nix`, `venv`, `manifest`, `vcs`, `jobs`, `duration`, `exit_code`) | Yes |
+| `full`    | All providers (`user`, `hostname`, `device_name`, `distro`, `full_pwd`, `shlvl`, `os`, `virt`, `memory`, `disk`, `huge_pages`, `load`, `psi`, `cpu_gov`, `battery`, `ssh`, `sudo`, `netif`, `netns`, `k8s`, `nix`, `venv`, `manifest`, `vcs`, `jobs`, `duration`, `exit_code`) | Yes |
 
 Theme Colors
 ------------
@@ -145,13 +146,13 @@ auraline prompt --profile nerdy --theme 128,0,128
 Supported Providers
 -------------------
 
-All enabled providers execute concurrently on a Tokio runtime; non-VCS providers run in parallel while VCS root discovery walks the directory tree. Consecutive active providers that resolve to the same value automatically coalesce their icons with `˖` (e.g. `˖ auraline`), while `--full-pwd` (`-W`) supersedes `--pwd` (`-w`) and `--distro` (`-D`) supersedes the non-Nerd-Font text fallback of `--os` (`-o`).
+All enabled providers execute concurrently on a Tokio runtime; non-VCS providers run in parallel while VCS root discovery walks the directory tree. Consecutive active providers that resolve to the same value automatically coalesce their icons with `˖` (e.g. `˖ auraline`), while `--user` (`-u`) supersedes `--realname` (`-r`), `--full-pwd` (`-W`) supersedes `--pwd` (`-w`), and `--distro` (`-D`) supersedes the non-Nerd-Font text fallback of `--os` (`-o`).
 
 ### Basic Information
 - **User** (`-u`, `--user`): Current username
-- **Realname** (`-r`, `--realname`): User's real name
+- **Realname** (`-r`, `--realname`): User's real name (shown when `--user` is not active)
 - **Hostname** (`-h`, `--hostname`): System hostname (`@hostname`)
-- **Device Name** (`-d`, `--device-name`): System device/computer name
+- **Device Name** (`-d`, `--device-name`): System device/computer name (`⎚` or `󰍹` with `--nerd-font`)
 - **Distro** (`-D`, `--distro`): OS / Linux distribution name
 - **PWD** (`-w`, `--pwd`): Current working directory (with `~` home shortening)
 - **Full PWD** (`-W`, `--full-pwd`): Current working directory (full path)
@@ -170,35 +171,35 @@ Automatically walks parent directories to detect the active repository (prioriti
 - **Darcs**: Commit info and status
 
 ### System & Networking
-- **OS** (`-o`, `--os`): OS / distribution Nerd Font icon (supports 60+ Linux distributions, BSD variants, macOS, Windows)
-- **Sudo** (`-S`, `--sudo`): Displays an indicator (`⚡` or `󰌋` with `--nerd-font`) when the current session is running as `root` or has active cached `sudo` credentials
-- **Memory** (`-m`, `--memory`): Memory usage percentage
+- **OS** (`-o`, `--os`): OS / distribution icon (Nerd Font glyph or text name when `--distro` is not active; supports 60+ Linux distributions, BSD variants, macOS, Windows)
+- **Sudo** (`-S`, `--sudo`): Displays an indicator (`↯` or `󰌋` with `--nerd-font`) when the current session is running as `root` or has active cached `sudo` credentials
+- **Memory** (`-m`, `--memory`): Memory usage percentage, cgroup v2 limit-aware on Linux (`μ` or `` with `--nerd-font`)
 - **Disk** (`-k`, `--disk`): Disk usage percentage for the current working directory's filesystem (`⛁` or `󰋊` with `--nerd-font`)
-- **HugePages** (`-H`, `--huge-pages`): Linux HugePages allocation by page size, with per-NUMA-node subscript breakdown on multi-socket systems (e.g. `₀8x2MB,₁8x2MB`)
+- **HugePages** (`-H`, `--huge-pages`): Linux HugePages allocation by page size (`⎘` or `󰵿` with `--nerd-font`), with per-NUMA-node subscript breakdown on multi-socket systems (e.g. `₀8x2MB,₁8x2MB`)
 - **Load Average** (`-l`, `--load`): 1-minute system load average (`λ1.45`)
-- **PSI Pressure** (`-P`, `--psi`): Linux Pressure Stall Information (`/proc/pressure/{cpu,memory,io}`) contention alerts when `some avg10 >= 5%` (`⚠ io:18%` or `󰀦 io:18%` with `--nerd-font`)
-- **CPU Governor** (`-g`, `--cpu-gov`): Active Linux `cpufreq` scaling governor (`⚙ performance` or `󰓅 performance` with `--nerd-font`)
-- **Battery** (`-b`, `--battery`): Laptop battery capacity and charging state via `/sys/class/power_supply/` on Linux and cached `pmset -g batt` on macOS (`⚡ 82%` / `▮ 75%`, or `󰂄 82%` / `󰁹 85%` with `--nerd-font`)
-- **SSH** (`-s`, `--ssh`): Active SSH session indicator with target server IP and port
-- **Network Interfaces** (`-n`, `--netif`): Active network interfaces with assigned addresses
-- **Network Namespace** (`-N`, `--netns`): Current Linux network namespace (`ip netns`)
+- **PSI Pressure** (`-P`, `--psi`): Linux Pressure Stall Information (`/proc/pressure/{cpu,memory,io}`) contention alerts when `some avg10 >= 5%` (`⟁ io:18%` or `󰀦 io:18%` with `--nerd-font`)
+- **CPU Governor** (`-g`, `--cpu-gov`): Active Linux `cpufreq` scaling governor (`⦿ performance` or `󰓅 performance` with `--nerd-font`)
+- **Battery** (`-b`, `--battery`): Laptop battery capacity and charging state via `/sys/class/power_supply/` on Linux and cached `pmset -g batt` on macOS (`⌁ 82%` / `▮ 75%` / `▯ 15%`, or `󰂄` / `󰁹` / `󰁾` / `󰁼` / `󰂃` with `--nerd-font`)
+- **SSH** (`-s`, `--ssh`): Active SSH session indicator with target server IP and port (`⇄`)
+- **Network Interfaces** (`-n`, `--netif`): Active non-loopback network interfaces (`☍` or `󰛳` with `--nerd-font`)
+- **Network Namespace** (`-N`, `--netns`): Current Linux network namespace (`{}` or `` with `--nerd-font`)
 - **Kubernetes** (`-K`, `--k8s`): Active Kubernetes context and non-default namespace parsed directly from `$KUBECONFIG` / `~/.kube/config` (`⎈ prod/api` or `󱃾 prod/api` with `--nerd-font`)
 
 ### Virtualization & Containers (`-V`, `--virt`)
-- **Fast-path detection**: Native zero-fork checks for Docker (`/.dockerenv`), Podman (`/run/.containerenv`), `$container`, and WSL (`WSL_DISTRO_NAME`, `WSL_INTEROP`, `/proc/sys/kernel/osrelease`), with fallback to `systemd-detect-virt`
+- **Fast-path detection**: Native zero-fork checks for Docker (`/.dockerenv`), Podman (`/run/.containerenv`), `$container`, WSL (`WSL_DISTRO_NAME`, `WSL_INTEROP`, `/proc/sys/kernel/osrelease`), Linux DMI sysfs (`/sys/class/dmi/id/*`), and macOS `kern.hv_vmm_present`, with fallback to `systemd-detect-virt`
 - **Hypervisors & Cloud**: KVM, QEMU, VMware, VirtualBox, Hyper-V, Xen, bhyve, Parallels, Apple Virtualization, Amazon EC2, Google Cloud Platform, Azure
 - **Containers**: Docker, Podman, LXC, systemd-nspawn, WSL, OpenVZ
 
 ### Development & Command Execution
-- **Nix / Direnv** (`-x`, `--nix`): Active `nix develop` / `nix-shell` (`$IN_NIX_SHELL`, `$name`, `❄` or `` with `--nerd-font`) and `direnv` (`$DIRENV_DIR`, `▼ direnv` or `󰁿 direnv`).
+- **Nix / Direnv** (`-x`, `--nix`): Active `nix develop` / `nix-shell` (`$IN_NIX_SHELL`, `$name`, `✻` or `` with `--nerd-font`) and `direnv` (`$DIRENV_DIR`, `▼ direnv` or `󰁿 direnv`).
 - **Virtualenv** (`-p`, `--venv`): Active Python (`$VIRTUAL_ENV` / `pyvenv.cfg`), Conda (`$CONDA_DEFAULT_ENV`), or Pixi (`$PIXI_ENVIRONMENT_NAME`) environment (`⏣` or `` with `--nerd-font`).
-- **Manifest** (`-M`, `--manifest`): Detects project manifest files in the current directory and displays both the toolchain/compiler version (cached per user and environment context in `/tmp`) and package version (`1.99.0 ↦ v0.15.0`). Supports 50+ languages and build systems including Rust (`Cargo.toml`), C/C++ (`CMakeLists.txt`, `meson.build`, `vcpkg.json`, `conanfile.py`, `xmake.lua`), Go (`go.mod`), Zig (`build.zig.zon`), Python (`pyproject.toml`, `setup.cfg`, `Pipfile`), Node.js/Deno/Bun (`package.json`, `deno.json`), Haskell (`*.cabal`, `stack.yaml`), OCaml (`dune-project`, `*.opam`), Java/Kotlin/Scala (`pom.xml`, `build.gradle`, `build.sbt`), Elixir (`mix.exs`), Dart (`pubspec.yaml`), C# (`*.csproj`), Common Lisp (`*.asd`), Lua (`*.rockspec`), and more.
+- **Manifest** (`-M`, `--manifest`): Detects project manifest files in the current directory and displays both the toolchain/compiler version (cached by binary path, mtime, and toolchain overrides in `/tmp`) and package version (`1.99.0 ↦ v0.18.0`). Supports 50+ languages and build systems including Rust (`Cargo.toml`), C/C++ (`CMakeLists.txt`, `meson.build`, `vcpkg.json`, `conanfile.py`, `xmake.lua`), Go (`go.mod`), Zig (`build.zig.zon`), Python (`pyproject.toml`, `setup.cfg`, `Pipfile`), Node.js/Deno/Bun (`package.json`, `deno.json`), Haskell (`*.cabal`, `stack.yaml`), OCaml (`dune-project`, `*.opam`), Java/Kotlin/Scala (`pom.xml`, `build.gradle`, `build.sbt`), Elixir (`mix.exs`), Dart (`pubspec.yaml`), C# (`*.csproj`), Common Lisp (`*.asd`), Lua (`*.rockspec`), and more.
 - **Jobs** (`-j`, `--jobs`): Count of active background or suspended shell jobs passed by the shell hook (`✦²` or `󰒲²` with `--nerd-font`).
-- **Duration** (`-e`, `--duration`): Execution time of the last interactive command (`ns`, `μs`, `ms`, `s`).
+- **Duration** (`-e`, `--duration`): Execution time of the last interactive command (`◷` or `󰄉` with `--nerd-font`, formatted in `ns`, `μs`, `ms`, `s`).
 - **Exit Code** (`--exit-code <EXIT_CODE>`): Displayed when the last command exits with a non-zero status (`✘ ¹²⁷`), automatically decoding fatal Unix signals (`129..`) into signal names (e.g. `✘ INT`, `✘ KILL`, `✘ SEGV`, `✘ TERM`).
 - **Timings** (`--timings`): Prints a per-provider execution latency breakdown for profiling and debugging.
 
 Nerd Fonts
 ----------
 
-The `--nerd-font` option (enabled automatically by the `nerdy` profile) uses Nerd Font glyphs for OS, language, VCS, and system icons. Make sure a [Nerd Font](https://www.nerdfonts.com/) is configured in your terminal.
+The `--nerd-font` option (enabled automatically by the `nerdy` and `full` profiles) uses Nerd Font glyphs for OS, language, VCS, and system icons. Make sure a [Nerd Font](https://www.nerdfonts.com/) is configured in your terminal.

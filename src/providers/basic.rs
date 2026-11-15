@@ -14,7 +14,9 @@ pub async fn device_name(opts: &Options) -> Option<Chunk<SmolStr>> {
     if !opts.device_name {
         return None;
     }
-    sys::device_name().await.map(|d| Chunk::new("🖥", d))
+    sys::device_name()
+        .await
+        .map(|d| Chunk::new(opts.select_str("⎚", "󰍹"), d))
 }
 
 #[inline]
@@ -27,7 +29,7 @@ pub async fn user(opts: &Options) -> Option<Chunk<SmolStr>> {
 
 #[inline]
 pub async fn realname(opts: &Options) -> Option<Chunk<SmolStr>> {
-    if !opts.realname {
+    if !opts.realname || (opts.user && sys::username().is_some()) {
         return None;
     }
     sys::realname().map(Chunk::info)
