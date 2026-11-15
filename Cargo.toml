@@ -1,6 +1,6 @@
 [package]
 name = "auraline"
-version = "0.17.0"
+version = "0.18.0"
 edition = "2021"
 
 authors = ["Nicola Bonelli <nicola.bonelli@gmail.com>"]
@@ -11,6 +11,7 @@ readme = "README.md"
 repository = "https://github.com/awgn/auraline"
 keywords = ["cli", "utility"]
 categories = ["command-line-utilities"]
+exclude = ["/.agents", "/.gemini", "/notes", "/skills", "/codebook.toml"]
 
 [dependencies]
 phf = { version = "0.14.0", features = ["macros"] }
@@ -18,15 +19,15 @@ phf_macros = "0.14.0"
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive"] }
 itertools = "0.15.0"
-itoa = "1.0.18"
-tokio = { version = "1.54.0", features = ["macros", "process", "rt", "sync", "time"] }
+itoa = "1.0.19"
+tokio = { version = "1.54.1", features = ["macros", "process", "rt", "sync", "time"] }
 owo-colors = "4.4.0"
 frunk = "0.5.0"
 smol_str = "0.3.7"
 libc = "0.2.191"
 scopeguard = "1.2.0"
 enum_dispatch = "0.3.13"
-smallvec = { version = "1.16.3", features = ["const_generics"] }
+smallvec = { version = "1.16.5", features = ["const_generics"] }
 papaya = "0.2.5"
 
 [profile.release]
